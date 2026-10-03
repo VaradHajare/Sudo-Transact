@@ -75,6 +75,12 @@
     - `late_debit` makes the S1 "yes" hit the live re-check.
   - Both have API tests and console buttons.
 
+- **Failed-payment reports on the owner's WhatsApp** (owner request, 2026-10-03).
+  - **When:** each new failed or pending payment queues one `FAILURE_REPORT` job, sent by the worker. Not for the seed or the simulator (`QUIET_TRIGGERS`).
+  - **Content:** built from the same records as the three agents (`app/conversation/report.py`, English, no LLM); escalations are marked urgent.
+  - **Delivery:** WhatsApp via CallMeBot (`app/providers/notify.py`; personal use, owner's number + API key in `.env`) and/or a JSON webhook (`REPORT_WEBHOOK_URL`, e.g. Zapier). Failures retry with backoff. The audit log has `REPORT_SENT` with channels only.
+  - **Bug found by the tests:** `schedule_job` and `escalate` cancelled *every* queued job for a case. They now cancel only decision jobs (`DECISION_JOBS`), so reports and LLM summaries survive.
+  - **Tests:** 235 pass, against a fake CallMeBot and webhook.
 - **"Talk to a human" rings the support line** (owner request, 2026-10-03).
   - **Setting:** `HUMAN_SUPPORT_PHONE` (in `backend/.env` only; validated as +country digits).
   - **Backend:** a `talk_to_human` turn escalates as before, replies "connecting you to a support specialist" (`templates.CALLING`, en/hi/mr, no digits spoken), and returns a `CALL_HUMAN` action.

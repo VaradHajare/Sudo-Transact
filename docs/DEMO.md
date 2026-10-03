@@ -95,6 +95,22 @@ Say plainly what is mocked and what is real:
 
 In any payment's chat, say **"I want to talk to a human"** (or "kisi insaan se baat karao", or tap **Talk to a human**). The agent says it's connecting you, a green call card shows the support number, and the phone's dialer opens with the number filled in. Tap call. The case also goes to the console's review queue with its case file. The number comes from `HUMAN_SUPPORT_PHONE` in `backend/.env`.
 
+## Optional: failed-payment report on your WhatsApp
+
+Every new failed or pending payment (Scan & Pay, the outage button, ingested events) sends the owner one WhatsApp report:
+- the payee and amount;
+- what the Bank, Rules and Follow-up agents found;
+- what the customer was told.
+
+Escalations are marked 🔴 *Needs a human*. The report goes out a couple of seconds after the failure, from the background worker. Seeded demo data never sends one.
+
+**Setup (once):**
+1. On WhatsApp, add **+34 644 99 26 98** and send *I allow callmebot to send me messages*.
+2. Put the API key it replies with into `backend/.env`, together with `WHATSAPP_REPORTS_ENABLED=true` and `WHATSAPP_REPORT_PHONE=+91…`.
+3. Restart the server.
+
+For Zapier, Make or n8n instead, set `REPORT_WEBHOOK_URL` to the hook URL. The same report is POSTed as JSON.
+
 ## Optional: bank outage
 
 Click **Bank outage: fail a payment** a few times. Each click fails a new payment with the bank down, and each is prepared in the background as F6 → WAIT. Tap the mic on any of them: "your bank is having trouble, your money is safe, don't pay again". The **Review queue** count does not go up: no human was needed. *(Test: `test_demo_bank_outage_is_answered_without_a_human`.)*

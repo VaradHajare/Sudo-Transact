@@ -21,6 +21,8 @@ STATE_FOR = {
     Action.CLOSE: "CLOSED", Action.ESCALATE: "ESCALATED",
 }
 TERMINAL_STATES = {"CLOSED", "RESOLVED", "ESCALATED", "REVIEWED"}
+# Jobs that re-decide the case: a newer decision replaces them. Reports and summaries are never cancelled.
+DECISION_JOBS = ("RECHECK_CASE", "SLA_DEADLINE", "DISPUTE_FOLLOWUP")
 # Triggers where the user is reading the agent's answer right now, so no separate update message.
 SILENT_TRIGGERS = {"USER_TURN", "USER_INVESTIGATE"}
 
@@ -42,7 +44,8 @@ def save_evidence(db: Session, case: Case, b: EvidenceBundle, now: datetime) -> 
 
 
 def schedule_job(db: Session, kind: str, case_id: str, run_at: datetime, now: datetime) -> None:
-    db.query(Job).filter(Job.case_id == case_id, Job.status == "QUEUED").update({"status": "CANCELLED"})
+    db.query(Job).filter(Job.case_id == case_id, Job.status == "QUEUED", Job.kind.in_(DECISION_JOBS)).update(
+        {"status": "CANCELLED"}, synchronize_session=False)
     db.add(Job(kind=kind, case_id=case_id, run_at=run_at, created_at=now))
 
 
@@ -140,7 +143,8 @@ def escalate(db: Session, case: Case, reason: str, now: datetime, b: EvidenceBun
     case.case_file_json = json.dumps(build_case_file(db, case, b, d, dec, reason, now), ensure_ascii=False)
     case.state = "ESCALATED"
     case.updated_at = now
-    db.query(Job).filter(Job.case_id == case.id, Job.status == "QUEUED").update({"status": "CANCELLED"})
+    db.query(Job).filter(Job.case_id == case.id, Job.status == "QUEUED", Job.kind.in_(DECISION_JOBS)).update(
+        {"status": "CANCELLED"}, synchronize_session=False)
     audit.log(db, case.id, now, "ESCALATED", {"reason": reason}, actor=actor)
     p = providers.current()
     if p.llm and p.settings and p.settings.LLM_ENABLED and p.settings.LLM_CASE_SUMMARY_ENABLED:

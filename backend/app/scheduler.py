@@ -6,6 +6,7 @@ rules decide, and the live re-check guards every action):
   SLA_DEADLINE      F4 deadline reached: dispute + compensation if the money is still not back
   DISPUTE_FOLLOWUP  after a dispute: catch a late reversal (close) or grow the compensation
   CASE_SUMMARY      LLM reviewer note for an escalated case file (only when the LLM is on)
+  FAILURE_REPORT    the failed-payment report to the owner (WhatsApp / webhook), once per payment
 
 Jobs are claimed with a conditional UPDATE (QUEUED -> RUNNING), so the worker thread and a
 /mock/clock time-skip can never run the same job twice.
@@ -25,7 +26,7 @@ from app.engine.pipeline import NOT_REDECIDED, process_transaction
 from app.models import Case, Job
 
 log = logging.getLogger("scheduler")
-JOB_KINDS = {"RECHECK_CASE", "SLA_DEADLINE", "DISPUTE_FOLLOWUP", "CASE_SUMMARY"}
+JOB_KINDS = {"RECHECK_CASE", "SLA_DEADLINE", "DISPUTE_FOLLOWUP", "CASE_SUMMARY", "FAILURE_REPORT"}
 MAX_JOBS_PER_TICK = 200
 
 
@@ -50,8 +51,9 @@ def run_job(db: Session, settings: Settings, job_id: int) -> dict:
     try:
         if job.kind not in JOB_KINDS:
             raise ValueError(f"unknown job kind {job.kind}")
-        if job.kind == "CASE_SUMMARY":
-            summary.update(_write_case_summary(db, case))
+        if job.kind in ("CASE_SUMMARY", "FAILURE_REPORT"):
+            summary.update(_write_case_summary(db, case) if job.kind == "CASE_SUMMARY"
+                           else _send_failure_report(db, settings, case))
             job.status = "DONE"
             db.commit()
             return summary
@@ -102,6 +104,20 @@ def _write_case_summary(db: Session, case: Case | None) -> dict:
                                   if e.event_type == "LLM_CLASSIFIED"] or None
     case.case_file_json = json.dumps(case_file, ensure_ascii=False)
     return {"status": "DONE", "case_id": case.id}
+
+
+def _send_failure_report(db: Session, settings: Settings, case: Case | None) -> dict:
+    """The owner's failed-payment report. Raises on a delivery failure, so the job retries."""
+    from app.conversation import report
+
+    notifier = providers.current().notifier
+    if case is None or notifier is None:
+        return {"status": "SKIPPED", "reason": "no case or no report channel configured"}
+    text, payload = report.build(db, settings, case)
+    sent = notifier.send_report(text, payload)
+    audit.log(db, case.id, clock.now(db), "REPORT_SENT",  # no phone number or text in the audit log
+              {"channels": sent.channels, "latency_ms": sent.latency_ms}, actor="AGENT")
+    return {"status": "DONE", "case_id": case.id, "channels": sent.channels}
 
 
 def run_due_jobs(db: Session, settings: Settings) -> list[dict]:

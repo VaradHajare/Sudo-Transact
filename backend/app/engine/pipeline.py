@@ -23,10 +23,12 @@ from app.engine.evidence import fetch_and_assemble
 from app.engine.recheck import live_recheck
 from app.engine.retry_gate import evaluate_gate
 from app.mock.sources import Sources, mock_sources
-from app.models import Case, Dispute, Retry, Transaction, User
+from app.models import Case, Dispute, Job, Retry, Transaction, User
 
 ACTIONS_NEEDING_RECHECK = {Action.OFFER_RETRY, Action.RAISE_DISPUTE, Action.CLOSE}
 MAX_REASSEMBLE = 3
+# Case creation that never sends a failed-payment report: the demo seed and the simulator.
+QUIET_TRIGGERS = {"SEED", "SIM_PREP"}
 # Not re-decided automatically: terminal, or paused while the user is on the retry pay screen.
 NOT_REDECIDED = TERMINAL_STATES | {"RETRY_CONFIRMED"}
 
@@ -90,7 +92,11 @@ def process_transaction(db: Session, settings: Settings, txn_id: str, trigger: s
         raise LookupError(f"unknown transaction {txn_id}")
     if txn.direction != "OUT":
         raise ValueError("only outgoing payments have cases")
+    is_new = db.query(Case.id).filter(Case.txn_id == txn.id).first() is None
     case = get_or_create_case(db, txn, now, trigger)
+    if is_new and settings.reports_on and trigger not in QUIET_TRIGGERS and txn.status in ("FAILED", "PENDING"):
+        # Sent by the worker once this decision is committed (never slows the user's request).
+        db.add(Job(kind="FAILURE_REPORT", case_id=case.id, run_at=now, created_at=now))
 
     if new_claims:
         merged = _load_claims(case) + new_claims

@@ -13,6 +13,7 @@ from app.config import Settings
 class Providers:
     llm: object | None = None  # app.providers.llm.LLMClient
     sarvam: object | None = None  # app.providers.sarvam.SarvamClient
+    notifier: object | None = None  # app.providers.notify.Notifier (failed-payment reports)
     settings: Settings | None = None
 
 
@@ -21,11 +22,13 @@ _current = Providers()
 
 def from_settings(settings: Settings) -> Providers:
     from app.providers.llm import LLMClient
+    from app.providers.notify import Notifier
     from app.providers.sarvam import SarvamClient
 
     llm = LLMClient(settings) if settings.LLM_ENABLED and settings.LLM_API_KEY and settings.LLM_BASE_URL else None
     sarvam = SarvamClient(settings) if (settings.STT_ENABLED or settings.TTS_ENABLED) and settings.SARVAM_API_KEY else None
-    return Providers(llm=llm, sarvam=sarvam, settings=settings)
+    notifier = Notifier(settings) if settings.reports_on else None
+    return Providers(llm=llm, sarvam=sarvam, notifier=notifier, settings=settings)
 
 
 def install(p: Providers) -> None:

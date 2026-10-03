@@ -55,6 +55,7 @@ To run the tests: `cd backend && .venv\Scripts\python -m pytest`, which runs 223
 | Sarvam voice | `SARVAM_API_KEY`, `STT_ENABLED`, `TTS_ENABLED`, `SARVAM_TTS_SPEAKER` |
 | Decision rules | `COMPENSATION_PER_DAY`, `SLA_*_DAYS`, `PENDING_WINDOW_MINUTES`, `RETRY_COOLDOWN_SECONDS`, … |
 | App | `DATABASE_URL` (SQLite only), `PUBLIC_BASE_URL`, `DEMO_MODE`, `SCHEDULER_ENABLED` |
+| Demo / owner | `DEMO_SCAN_PAY_FAILURE`, `HUMAN_SUPPORT_PHONE` ("talk to a human" rings it), `WHATSAPP_REPORTS_ENABLED` + `WHATSAPP_REPORT_PHONE` + `CALLMEBOT_API_KEY` (failed-payment reports on WhatsApp), `REPORT_WEBHOOK_URL` (same report as JSON, e.g. Zapier) |
 
 With LLM / STT / TTS switched off, everything still works on templates and text. See `backend/.env.example` for the full list.
 

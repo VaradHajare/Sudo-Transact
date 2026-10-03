@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     # "Talk to a human" rings this support number (the app opens the phone's dialer). Empty = no
     # call; the case is still escalated with its case file. Keep real numbers in .env only.
     HUMAN_SUPPORT_PHONE: str = ""
+
+    # Failed-payment reports to the owner (background job FAILURE_REPORT), one per new failed or
+    # pending payment. WhatsApp via CallMeBot (personal use) and/or a JSON webhook (Zapier/Make/n8n).
+    WHATSAPP_REPORTS_ENABLED: bool = False
+    WHATSAPP_REPORT_PHONE: str = ""  # your WhatsApp number, e.g. +91XXXXXXXXXX (keep in .env)
+    CALLMEBOT_API_KEY: str = ""
+    CALLMEBOT_BASE_URL: str = "https://api.callmebot.com/whatsapp.php"
+    REPORT_WEBHOOK_URL: str = ""  # optional: POST the report as JSON here too
+    REPORT_TIMEOUT_SECONDS: float = 15.0
     DEMO_USER_ID: str = "u_demo"
     WEB_DIR: str = str(REPO_DIR / "web")
 
@@ -100,12 +109,12 @@ class Settings(BaseSettings):
                 v = prefix + (BACKEND_DIR / path).resolve().as_posix()
         return v
 
-    @field_validator("HUMAN_SUPPORT_PHONE")
+    @field_validator("HUMAN_SUPPORT_PHONE", "WHATSAPP_REPORT_PHONE")
     @classmethod
     def phone_number(cls, v: str) -> str:
         v = v.replace(" ", "").replace("-", "")
         if v and not (v.startswith("+") and v[1:].isdigit() and 8 <= len(v) <= 16):
-            raise ValueError("HUMAN_SUPPORT_PHONE must look like +919876543210")
+            raise ValueError("phone numbers must look like +919876543210")
         return v
 
     @field_validator("MEDIA_DIR")
@@ -120,6 +129,12 @@ class Settings(BaseSettings):
         if self.DATABASE_URL.startswith(prefix) and ":memory:" not in self.DATABASE_URL:
             return Path(self.DATABASE_URL[len(prefix):])
         return None
+
+    @property
+    def reports_on(self) -> bool:
+        """Is any failed-payment report channel configured?"""
+        whatsapp = self.WHATSAPP_REPORTS_ENABLED and self.WHATSAPP_REPORT_PHONE and self.CALLMEBOT_API_KEY
+        return bool(whatsapp or self.REPORT_WEBHOOK_URL)
 
     @property
     def compensation_per_day_paise(self) -> int:
