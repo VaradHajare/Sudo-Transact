@@ -142,6 +142,23 @@ def test_first_reply_briefs_about_dispute_on_another_case(api):
     assert "Also:" not in say(api, cid, "why?")["speak"]["text"]  # only on the first reply
 
 
+def test_end_conversation_flag_for_hands_free_mode(api):
+    cid = open_case(api, "txn_s2_citymobiles")["case"]["id"]
+    r = say(api, cid, "paise kat gaye par mila nahi")
+    assert r["end_conversation"] is False and r["chips"]
+    r = say(api, cid, "theek hai, dhanyavad")
+    assert r["intent"] == "goodbye" and r["end_conversation"] is True and r["chips"] == []
+    assert r["speak"]["text"].startswith("आपका स्वागत है")
+    assert r["case"]["state"] == "WAITING"  # a goodbye changes nothing about the case
+
+    s1 = open_case(api, "txn_s1_sharma")["case"]["id"]
+    say(api, s1, "Did my money get cut?")
+    r = say(api, s1, "ok thanks")  # must not open the pay screen
+    assert r["actions"] == [] and r["case"]["state"] == "RETRY_OFFERED" and r["end_conversation"]
+    r = say(api, s1, "yes")
+    assert r["actions"][0]["type"] == "OPEN_PAY_SCREEN" and r["end_conversation"] is True
+
+
 def test_talk_to_human(api):
     cid = open_case(api, "txn_f3_gupta")["case"]["id"]
     r = say(api, cid, chip="talk_to_human")

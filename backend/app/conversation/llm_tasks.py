@@ -27,7 +27,7 @@ LANG_NAME = {"en": "simple Indian English", "hi": "simple Hindi in Devanagari sc
 
 class IntentOut(BaseModel):
     intent: Literal["status_check", "what_should_i_do", "why", "what_if", "confirm_retry", "decline_retry",
-                    "raise_dispute", "repeat", "talk_to_human"]
+                    "raise_dispute", "repeat", "talk_to_human", "goodbye"]
     language: Literal["en", "hi", "mr"]
     confidence: float = Field(ge=0, le=1)
 
@@ -46,6 +46,7 @@ Intents:
 - raise_dispute: wants to file a complaint or dispute
 - repeat: asks to repeat the last answer
 - talk_to_human: wants a person / customer care
+- goodbye: thanks / that's all / bye (ends the conversation)
 
 language: "hi" for Hindi, including romanized Hindi (Hinglish); "mr" for Marathi, including romanized Marathi; otherwise "en".
 If unsure, use status_check with low confidence."""

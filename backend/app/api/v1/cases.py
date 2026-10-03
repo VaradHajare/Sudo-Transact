@@ -100,7 +100,8 @@ def turn_response(db: Session, r: TurnResult) -> dict:
         "stt": {"language_code": r.stt.language_code, "language_probability": r.stt.language_probability,
                 "latency_ms": r.stt.latency_ms} if r.stt else None,
         "speak": {"lang": r.lang, "text": r.reply, "audio_url": r.audio_url, "facts": r.facts},
-        "chips": r.chips, "actions": r.actions, "case": case_view(db, case),
+        "chips": r.chips, "actions": r.actions, "end_conversation": r.end_conversation,
+        "case": case_view(db, case),
         "messages": [message_view(db.get(Message, r.user_message_id)), message_view(db.get(Message, r.agent_message_id))],
     }
 

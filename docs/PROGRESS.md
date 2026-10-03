@@ -25,6 +25,11 @@
   - **Web:** `web/voice.js` listening sheet (orb, silence detection, live preview), handoff to the chat, spoken replies, barge-in, mute.
   - **Rule fix found while testing:** rule 7b no longer waits forever when NPCI evidence is *missing*; it escalates.
   - **Checked live:** a Hindi voice turn in 0.9 s; the browser flow sheet → STT → S2 answer; all four LLM jobs. Audible playback can't be confirmed in the automated browser (hidden tab); check it by hand.
+- **Hands-free voice conversation (owner request, 2026-10-03).** One tap starts a Siri-style loop (listen → spoken reply → listen) instead of spec 4.2 step 6's tap per turn.
+  - **It ends on:** 7 s of silence, a goodbye ("thank you / bas / धन्यवाद", new intent `goodbye`), asking for a human, the pay screen, ✕, or leaving the chat. The backend sends `end_conversation`.
+  - **Safety:** the mic is still on only while a listening indicator shows. Goodbye is detected before yes/no, so "ok thanks" can never confirm a retry; "no thanks" still declines.
+  - **Fix:** the voice level is measured on the audio thread (AudioWorklet), because frame-based sampling missed the follow-up turn.
+  - **Checked in Chrome:** two-turn hands-free run (question → answer → auto-listen → "ठीक है, धन्यवाद" → goodbye → mic released).
 
 ## Next
 - Step 8: simulator + B0/B1/B2 evaluation (B2 = with the LLM classifier).
@@ -33,5 +38,6 @@
 ## Notes / decisions
 - Times are naive UTC in the DB; IST (+05:30) for display and SLA end-of-day.
 - SLA deadline = end of day IST, T+n after the debit date (n from config).
+- Spec 4.2 step 6 (tap the mic for every turn) is replaced by hands-free conversation; see above. Consider recording this in CLAUDE.md's team decisions.
 - A user's "money was debited" statement is not treated as suspicious on its own (honest confusion is common); amount/payee mismatches and repeat claims are.
 - Hindi/Marathi templates need a native speaker's review.

@@ -196,7 +196,9 @@
   const VOICE = Object.freeze({
     liveTranscript: true,
     silenceMs: 1500, // end of speech after this much silence (spec 4.2)
+    noSpeechMs: 7000, // nobody spoke: a hands-free conversation ends here
     maxMs: 15000,
+    handsFree: true, // after a spoken reply, listen again automatically (Siri-style)
     speechLevel: 0.04, // RMS above this counts as speech
   });
   const LANG_TAG = { en: "en-IN", hi: "hi-IN", mr: "mr-IN" };

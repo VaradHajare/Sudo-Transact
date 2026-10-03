@@ -208,6 +208,8 @@ Rendering:
 | `retry` | `POST /v1/cases/{id}/retry/confirm` (call 4) |
 | `why`, `what_if`, `talk_to_human` | `POST /v1/voice/turn` with `{"case_id", "chip_id"}` |
 
+**`end_conversation`** (boolean, on every turn response). It is `true` when the user said goodbye ("thank you", "bas", "धन्यवाद"), asked for a human, or an `OPEN_PAY_SCREEN` action was returned. A hands-free client stops listening after speaking this reply; otherwise it listens again. A goodbye turn has `intent: "goodbye"`, no chips, and changes nothing about the case.
+
 **Actions**:
 
 | type | Meaning |

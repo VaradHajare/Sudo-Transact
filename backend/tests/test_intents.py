@@ -36,6 +36,15 @@ def test_language_keeps_current_without_signal():
     ("shikayat karo", "WAITING", "raise_dispute"),
     ("what should I do", "WAITING", "what_should_i_do"),
     ("please repeat", "WAITING", "repeat"),
+    ("thank you", "WAITING", "goodbye"),
+    ("ok thanks bye", "WAITING", "goodbye"),
+    ("dhanyavad", "WAITING", "goodbye"),
+    ("बहुत धन्यवाद", "WAITING", "goodbye"),
+    ("ठीक आहे, आभारी आहे", "WAITING", "goodbye"),
+    # hands-free safety: a polite sign-off must never be read as "yes, pay again"
+    ("ok thanks", "RETRY_OFFERED", "goodbye"),
+    ("no thanks", "RETRY_OFFERED", "decline_retry"),
+    ("yes please", "RETRY_OFFERED", "confirm_retry"),
 ])
 def test_intent(text, state, intent):
     assert detect_intent(text, state) == intent

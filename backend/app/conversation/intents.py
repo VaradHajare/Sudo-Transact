@@ -47,7 +47,13 @@ def detect_language(text: str, current: str = "en") -> str:
 
 
 INTENTS = ("status_check", "what_should_i_do", "why", "confirm_retry", "decline_retry", "raise_dispute",
-           "repeat", "talk_to_human", "what_if")
+           "repeat", "talk_to_human", "what_if", "goodbye")
+
+# Ends a hands-free conversation. Checked BEFORE yes/no so "ok thanks" never confirms a retry.
+_GOODBYE = ["thank you", "thanks", "thankyou", "bye", "goodbye", "that's all", "thats all", "nothing else",
+            "dhanyavad", "dhanyawad", "dhanyavaad", "shukriya", "bas itna", "bas itna hi", "alvida",
+            "aabhari", "abhari", "bas zala", "thik aahe bas",
+            "धन्यवाद", "शुक्रिया", "बस इतना", "अलविदा", "आभारी", "बस झालं", "बस्स"]
 
 _PATTERNS: list[tuple[str, list[str]]] = [
     ("talk_to_human", ["human", "person", "real agent", "customer care", "call me", "insaan", "insan", "aadmi",
@@ -99,13 +105,16 @@ def detect_intent_ex(text: str, case_state: str | None = None) -> tuple[str, boo
     for intent, phrases in _PATTERNS[:2]:  # human / repeat always win
         if any(_has(t, p) for p in phrases):
             return intent, True
-    # Yes / no only mean something when a retry is on offer, and only in short non-question replies.
     toks = TOKEN.findall(t)
-    if case_state == "RETRY_OFFERED" and len(toks) <= 5 and not _is_question(t, toks):
-        if any(_has(t, p) for p in _DECLINE):
-            return "decline_retry", True
-        if any(_has(t, p) for p in _CONFIRM):
-            return "confirm_retry", True
+    # Yes / no only mean something when a retry is on offer, and only in short non-question replies.
+    # Order matters: "no thanks" declines, "ok thanks" says goodbye (never a yes).
+    yes_no = case_state == "RETRY_OFFERED" and len(toks) <= 5 and not _is_question(t, toks)
+    if yes_no and any(_has(t, p) for p in _DECLINE):
+        return "decline_retry", True
+    if len(toks) <= 6 and any(_has(t, p) for p in _GOODBYE):
+        return "goodbye", True
+    if yes_no and any(_has(t, p) for p in _CONFIRM):
+        return "confirm_retry", True
     for intent, phrases in _PATTERNS[2:]:
         if any(_has(t, p) for p in phrases):
             return intent, True

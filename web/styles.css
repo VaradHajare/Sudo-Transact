@@ -324,6 +324,23 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   background: linear-gradient(135deg, var(--color-brand-sky), var(--color-brand-navy));
 }
 
+/* hands-free conversation bar (replaces the composer while talking) */
+.voicebar {
+  display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4);
+  background: var(--color-surface); border-top: 1px solid var(--color-border);
+}
+.orb--small { width: 64px; height: 64px; flex: none; }
+.orb--small .orb__core { width: 48px; height: 48px; }
+.orb:disabled { cursor: default; opacity: 1; }
+.voicebar--thinking .orb__core { animation: think 1.2s ease-in-out infinite; }
+.voicebar--speaking .orb__core { background: linear-gradient(135deg, var(--color-brand-navy), var(--color-brand-sky)); }
+@keyframes think { 0%, 100% { transform: scale(0.92); } 50% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .voicebar--thinking .orb__core { animation: none; } }
+.voicebar__main { flex: 1; min-width: 0; }
+.voicebar__status { font-size: var(--font-size-sm); font-weight: 700; color: var(--color-brand-navy); }
+.voicebar__live { font-size: var(--font-size-sm); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.2em; }
+.notice-line { color: var(--color-text-muted); font-size: var(--font-size-sm); text-align: center; padding: 0 var(--space-4) var(--space-2); }
+
 .demo-tools { margin-top: var(--space-6); padding: var(--space-3); border: 1px dashed var(--color-border); border-radius: var(--radius-md); font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .demo-tools button { margin-top: var(--space-2); }
 

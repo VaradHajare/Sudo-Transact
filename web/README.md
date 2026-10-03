@@ -10,7 +10,7 @@ A phone-width web app for the AI Resolve feature. Plain HTML, CSS and JS: no fra
 | `index.html` | Shell: `#app` root, hidden `<audio id="tts">` for replies |
 | `styles.css` | All design tokens in the `:root` block; components use only those variables |
 | `data.js` | `BRAND` (the only place the app name appears), formatters (`formatPaise`, `formatWhen`, …) and the API client: `TransactionRepository`, `AgentRepository`, `PendingPayments`, `DemoRepository`. All repository methods are async. |
-| `voice.js` | Mic capture (`getUserMedia` + `MediaRecorder`), voice-level orb, end of speech after ~1.5 s silence, and the listening sheet (`Voice.listen`) |
+| `voice.js` | Mic capture (`Voice.capture`: `getUserMedia` + `MediaRecorder`, voice level measured on the audio thread by a small AudioWorklet, end of speech after ~1.5 s silence, no-speech timeout) and the listening sheet (`Voice.listen`) |
 | `app.js` | Components (render functions with a props comment, returning HTML strings), the screens and a hash router |
 
 ## Screens
@@ -30,7 +30,11 @@ A phone-width web app for the AI Resolve feature. Plain HTML, CSS and JS: no fra
 
 ## Voice
 - **Mic tap on a payment:** the listening sheet rises over that screen. It records until ~1.5 s of silence (or a tap on the orb), then opens the chat for that payment and sends the audio to `POST /v1/voice/turn`. The backend does Sarvam STT, so no key lives in the browser.
-- **Replies:** played from `speak.audio_url` through the hidden `<audio id="tts">`. Tapping the mic while it plays stops it (barge-in). The speaker icon in the chat header mutes replies.
+- **Hands-free conversation (Siri-style):** one tap starts a conversation. After each spoken reply the app listens again by itself, and a voice bar ("Listening… / Thinking… / Speaking…", live words, keyboard, ✕) replaces the text box.
+  - **It ends when:** the user is silent for `VOICE.noSpeechMs` (7 s), says thanks or goodbye, asks for a human, taps ✕ or the keyboard, the pay screen opens, or the user leaves the chat.
+  - **Tapping the orb:** while it's speaking, this interrupts (barge-in); while it's listening, this sends right away.
+  - **To go back to one tap per question,** set `VOICE.handsFree = false`.
+- **Replies:** played from `speak.audio_url` through the hidden `<audio id="tts">`. The speaker icon in the chat header mutes replies. If the audio never starts loading, the conversation moves on after 8 s.
 - **Live transcript in the sheet:** a preview from the browser's own speech recognizer, where one exists. In Chrome that audio is processed by Google. Only Sarvam's transcript is used. Turn the preview off with `VOICE.liveTranscript` in `data.js`.
 - **Mic access:** browsers allow the mic only on `localhost` or HTTPS. For a phone, use an HTTPS tunnel and set `PUBLIC_BASE_URL` in `backend/.env` to that address.
 - **Fallbacks:** when the server has voice off (`/healthz`), the browser can't record, or mic permission is denied, the chat works by typing.

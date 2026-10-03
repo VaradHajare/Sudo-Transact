@@ -197,6 +197,18 @@ RETRY = {
     },
 }
 
+# ------------------------------------------------------------------ end of a hands-free conversation
+GOODBYE = {
+    "en": "You're welcome. I'll keep watching this payment and tell you here if anything changes.",
+    "hi": "आपका स्वागत है। मैं इस पेमेंट पर नज़र रखूँगा, और कुछ भी बदला तो यहीं बताऊँगा।",
+    "mr": "आपले स्वागत आहे. मी या पेमेंटवर लक्ष ठेवेन, आणि काही बदलले तर इथेच सांगेन.",
+}
+
+
+def goodbye_text(lang: str) -> str:
+    return GOODBYE[_lang(lang)]
+
+
 # ------------------------------------------------------------------ briefing: urgent updates on OTHER cases
 # Only actions the agent took on the user's behalf (spec 4.2). Good news like a landed refund is
 # shown by the history badge and that case's own chat, not appended to an unrelated answer.

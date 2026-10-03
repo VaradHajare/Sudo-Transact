@@ -31,6 +31,8 @@
     check: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>',
     cross: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>',
     clock: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    keyboard: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>',
+    close: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>',
     speaker: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
     speakerOff: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M23 9l-6 6M17 9l6 6"/></svg>',
     info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
@@ -277,6 +279,29 @@
       </div>`;
   }
 
+  /** VoiceBar: replaces the composer during a hands-free conversation.
+   *  props: { phase: "listening" | "thinking" | "speaking", live: string } */
+  function VoiceBar({ phase, live }) {
+    const status = {
+      listening: "Listening…",
+      thinking: "Thinking…",
+      speaking: "Speaking… tap the orb to interrupt",
+    }[phase] || "";
+    const orbLabel = phase === "speaking" ? "Interrupt and speak" : phase === "listening" ? "Done speaking, send now" : "Working";
+    return `
+      <div class="voicebar voicebar--${esc(phase)}" role="group" aria-label="Voice conversation">
+        <button type="button" class="orb orb--small" data-action="orb" data-orb aria-label="${orbLabel}" ${phase === "thinking" ? "disabled" : ""}>
+          <span class="orb__core">${Icon.micSmall}</span>
+        </button>
+        <div class="voicebar__main">
+          <div class="voicebar__status">${status}</div>
+          <div class="voicebar__live" data-live>${esc(live)}</div>
+        </div>
+        <button type="button" class="icon-btn icon-btn--ghost" data-action="keyboard" aria-label="Type instead">${Icon.keyboard}</button>
+        <button type="button" class="icon-btn icon-btn--ghost" data-action="end-voice" aria-label="End voice conversation">${Icon.close}</button>
+      </div>`;
+  }
+
   async function AgentScreen({ id: txnId }, isCurrent) {
     const health = await ConfigRepository.health();
     const voice = !!(health.stt && Voice.supported);
@@ -300,8 +325,12 @@
 
     const state = {
       caseId: opened.case.id, card: opened.case.card, messages: opened.messages,
-      busy: false, pending: null, error: null, muted: Prefs.muted,
+      busy: false, pending: null, error: null, notice: null, muted: Prefs.muted,
     };
+    // Hands-free conversation (Siri-style): listen -> reply is spoken -> listen again, until the
+    // user is silent, says thanks, taps stop, or the reply ends the conversation.
+    const convo = { active: false, phase: "idle", ctrl: null, live: "", chip: null, endAfterSpeech: false };
+    screenCleanup = () => { convo.active = false; if (convo.ctrl) convo.ctrl.cancel(); };
 
     function paint() {
       if (!isCurrent()) return;
@@ -322,47 +351,58 @@
             ${state.busy ? ThinkingDots() : ""}
           </div>
           ${state.error ? `<div class="error-line" role="alert">${esc(state.error)}</div>` : ""}
-          ${Composer({ disabled: state.busy, voice })}
+          ${state.notice && !state.error ? `<div class="notice-line">${esc(state.notice)}</div>` : ""}
+          ${convo.active ? VoiceBar({ phase: convo.phase, live: convo.live }) : Composer({ disabled: state.busy, voice })}
         </div>`;
       const chat = $app.querySelector("#chat");
       chat.scrollTop = chat.scrollHeight;
       const newInput = $app.querySelector(".composer__input");
-      if (draft) newInput.value = draft;
-      if (!state.busy && !voice) newInput.focus(); // voice-first: don't pop the keyboard
+      if (newInput && draft) newInput.value = draft;
+      if (newInput && !state.busy && !voice) newInput.focus(); // voice-first: don't pop the keyboard
     }
+    const setOrb = (lvl) => { const o = $app.querySelector("[data-orb]"); if (o) o.style.setProperty("--level", lvl.toFixed(3)); };
+    const setLive = (t) => { convo.live = t; const l = $app.querySelector("[data-live]"); if (l) l.textContent = t; };
 
     function voiceError(e) {
       const detail = e && e.detail;
-      if (e && e.status === 422 && detail === "no_speech") return "I didn't catch that. Tap the mic and try again, or type.";
+      if (e && e.status === 422 && detail === "no_speech") return "I didn't catch that. Please say it again, or type.";
       if (e && e.status === 422 && String(detail).startsWith("stt_disabled")) return "Voice is off on the server. Please type.";
       if (e && e.status === 502) return "Voice is unavailable right now. Please type your question.";
       return `Couldn't send: ${e ? e.message : "unknown error"}`;
     }
 
-    /** One turn: { text } | { chipId, label } | { audio: {blob, liveText} } */
-    async function send({ text, chipId, label, audio }) {
-      if (state.busy) return;
+    /** One turn. input: { text } | { chipId, label } | { audio: {blob, liveText} }.
+     *  Returns { res, playing } (playing resolves when the spoken reply ends), or null on error. */
+    async function send(input) {
+      if (state.busy) return null;
+      const { text, chipId, label, audio } = input;
       stopAudio();
       state.busy = true;
       state.error = null;
+      state.notice = null;
       state.pending = text || label || (audio && (audio.liveText || "🎤 …"));
       paint();
       try {
-        let r;
-        if (chipId === "retry") r = await AgentRepository.confirmRetry(state.caseId);
-        else if (audio) r = await AgentRepository.sendVoice(state.caseId, audio.blob, { lang: Prefs.lastLang });
-        else r = await AgentRepository.sendTurn(state.caseId, { text, chipId });
-        state.messages.push(...r.messages);
-        state.card = r.case.card;
-        Prefs.lastLang = r.lang;
-        if (!state.muted) playAudio(r.speak && r.speak.audio_url);
-        const pay = (r.actions || []).find((a) => a.type === "OPEN_PAY_SCREEN");
+        let res;
+        if (chipId === "retry") res = await AgentRepository.confirmRetry(state.caseId);
+        else if (audio) res = await AgentRepository.sendVoice(state.caseId, audio.blob, { lang: Prefs.lastLang });
+        else res = await AgentRepository.sendTurn(state.caseId, { text, chipId });
+        state.messages.push(...res.messages);
+        state.card = res.case.card;
+        Prefs.lastLang = res.lang;
+        const playing = state.muted ? Promise.resolve() : playAudio(res.speak && res.speak.audio_url);
+        const pay = (res.actions || []).find((a) => a.type === "OPEN_PAY_SCREEN");
         if (pay) {
+          // Let the read-back finish ("Paying ₹350 to …") before the pay screen opens.
           PendingPayments.set(state.caseId, pay.payload);
-          setTimeout(() => { if (isCurrent()) location.hash = `#/pay/${encodeURIComponent(state.caseId)}`; }, 2200);
+          Promise.all([playing, new Promise((r) => setTimeout(r, 1500))]).then(() => {
+            if (isCurrent()) location.hash = `#/pay/${encodeURIComponent(state.caseId)}`;
+          });
         }
+        return { res, playing };
       } catch (e) {
         state.error = audio ? voiceError(e) : `Couldn't send: ${e.message}`;
+        return null;
       } finally {
         state.busy = false;
         state.pending = null;
@@ -370,18 +410,55 @@
       }
     }
 
-    async function speak() {
-      if (state.busy) return;
-      if (!voice) {
-        state.error = health.stt ? "This browser can't record audio. Please type." : "Voice is off on the server. Please type.";
+    function endConversation(notice) {
+      convo.active = false;
+      if (convo.ctrl) convo.ctrl.cancel();
+      stopAudio();
+      if (notice) state.notice = notice;
+    }
+
+    /** The hands-free loop. `first` is an already-recorded turn (from the payment screen's sheet). */
+    async function converse(first) {
+      if (convo.active || !voice) return;
+      convo.active = true;
+      convo.endAfterSpeech = false;
+      state.error = null;
+      state.notice = null;
+      let next = first || null;
+      while (convo.active && isCurrent()) {
+        let input = next || convo.chip;
+        next = null;
+        convo.chip = null;
+        if (!input) {
+          convo.phase = "listening";
+          convo.live = "";
+          paint();
+          await new Promise((r) => setTimeout(r, 250)); // let the speaker's tail die down (echo)
+          if (!convo.active || !isCurrent()) break;
+          convo.ctrl = Voice.capture({ lang: Prefs.lastLang, onLevel: setOrb, onText: setLive });
+          const r = await convo.ctrl.done;
+          convo.ctrl = null;
+          if (!convo.active || !isCurrent()) break;
+          if (convo.chip) { input = convo.chip; convo.chip = null; } // a chip was tapped while listening
+          else if (!r) break;
+          else if (r.error) { state.error = r.error; break; }
+          else if (r.timeout) { state.notice = "Voice paused. Tap the mic when you want to talk again."; break; }
+          else input = { audio: r };
+        }
+        convo.phase = "thinking";
         paint();
-        return;
+        const out = await send(input);
+        if (!out || !convo.active || !isCurrent()) break;
+        if (out.res.end_conversation || !VOICE.handsFree) convo.endAfterSpeech = true;
+        convo.phase = "speaking";
+        paint();
+        await out.playing; // ends when the reply finishes, or when the user interrupts
+        if (convo.endAfterSpeech) break;
       }
-      stopAudio(); // barge-in: tapping the mic stops the agent talking
-      const r = await Voice.listen({ lang: Prefs.lastLang });
-      if (!isCurrent() || !r) return;
-      if (r.error) { state.error = r.error; paint(); return; }
-      send({ audio: r });
+      convo.active = false;
+      convo.phase = "idle";
+      if (convo.ctrl) { convo.ctrl.cancel(); convo.ctrl = null; }
+      if (isCurrent()) paint();
     }
 
     $app.onsubmit = (ev) => {
@@ -393,10 +470,40 @@
     };
     $app.onclick = (ev) => {
       const chip = ev.target.closest("[data-chip]");
-      if (chip) return send({ chipId: chip.dataset.chip, label: chip.dataset.label });
+      if (chip) {
+        const c = { chipId: chip.dataset.chip, label: chip.dataset.label };
+        if (convo.active) {
+          if (convo.phase === "thinking") return;
+          convo.chip = c; // picked up by the loop
+          if (convo.ctrl) convo.ctrl.cancel();
+          else stopAudio();
+          return;
+        }
+        return send(c);
+      }
       const example = ev.target.closest("[data-example]");
       if (example) return send({ text: example.dataset.example });
-      if (ev.target.closest('[data-action="mic"]')) return speak();
+      if (ev.target.closest('[data-action="mic"]')) {
+        if (!voice) {
+          state.error = health.stt ? "This browser can't record audio. Please type." : "Voice is off on the server. Please type.";
+          paint();
+          return;
+        }
+        return converse();
+      }
+      if (ev.target.closest('[data-action="orb"]')) {
+        if (convo.phase === "listening" && convo.ctrl) convo.ctrl.stop(); // done talking: send now
+        else if (convo.phase === "speaking") stopAudio(); // barge-in: the loop goes straight to listening
+        return;
+      }
+      if (ev.target.closest('[data-action="end-voice"]')) { endConversation(); paint(); return; }
+      if (ev.target.closest('[data-action="keyboard"]')) {
+        endConversation();
+        paint();
+        const i = $app.querySelector(".composer__input");
+        if (i) i.focus();
+        return;
+      }
       if (ev.target.closest('[data-action="mute"]')) {
         state.muted = !state.muted;
         Prefs.muted = state.muted;
@@ -408,10 +515,10 @@
     };
     paint();
 
-    // Arrived from the mic on the payment screen: the user's speech is already recorded.
+    // Arrived from the mic on the payment screen: the first turn is already recorded; keep talking.
     const handoff = PendingVoice.take(txnId);
     if (handoff && handoff.error) { state.error = handoff.error; paint(); }
-    else if (handoff) send({ audio: handoff });
+    else if (handoff) converse({ audio: handoff });
   }
 
   async function PayScreen({ caseId }, isCurrent) {
@@ -480,15 +587,37 @@
 
   // ------------------------------------------------------------------ audio (TTS)
   const $audio = document.getElementById("tts");
+  let finishPlayback = null;
+
+  /** Play a reply. Resolves when it ends, fails, or is interrupted (so a conversation can continue). */
   function playAudio(url) {
-    if (!url || !$audio) return;
-    $audio.src = url;
-    $audio.play().catch(() => { /* autoplay blocked: the bubble text is the same as the speech */ });
+    stopAudio();
+    if (!url || !$audio) return Promise.resolve();
+    return new Promise((resolve) => {
+      let done = false;
+      const fin = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(guard);
+        $audio.onended = $audio.onerror = null;
+        finishPlayback = null;
+        resolve();
+      };
+      const guard = setTimeout(fin, 60000);
+      // Audio that never starts loading (no output device, background tab) must not stall the conversation.
+      setTimeout(() => { if (!done && $audio.readyState === 0) fin(); }, 8000);
+      finishPlayback = fin;
+      $audio.onended = fin;
+      $audio.onerror = fin;
+      $audio.src = url;
+      $audio.play().catch(fin); // autoplay blocked: the bubble text is the same as the speech
+    });
   }
   function stopAudio() {
     if (!$audio) return;
     $audio.pause();
     $audio.removeAttribute("src");
+    if (finishPlayback) finishPlayback();
   }
 
   /** Floating mic on a payment: listen right here (sheet over the screen), then open that payment's chat. */
@@ -497,7 +626,7 @@
     const health = await ConfigRepository.health();
     if (!health.stt || !Voice.supported) { location.hash = target; return; } // text mode
     const r = await Voice.listen({ lang: Prefs.lastLang });
-    if (!r) return; // cancelled: stay on this screen
+    if (!r || r.timeout) return; // cancelled or nothing said: stay on this screen
     PendingVoice.set(txnId, r);
     location.hash = target;
   }
@@ -511,10 +640,12 @@
     [/^#\/pay\/([^/]+)$/, PayScreen, ["caseId"]],
   ];
   let navSeq = 0;
+  let screenCleanup = null; // set by a screen that holds resources (mic) until navigation
 
   function route() {
     const seq = ++navSeq;
     const isCurrent = () => seq === navSeq;
+    if (screenCleanup) { screenCleanup(); screenCleanup = null; } // e.g. turn the mic off when leaving the chat
     stopAudio();
     $app.onclick = defaultClick;
     $app.onsubmit = null;

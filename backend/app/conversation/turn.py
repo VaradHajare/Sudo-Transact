@@ -42,6 +42,7 @@ class TurnResult:
     audio_url: str | None = None
     stt: STTResult | None = None
     chip_id: str | None = None
+    end_conversation: bool = False
 
 
 def briefing_items(db: Session, user_id: str, exclude_case_id: str | None, lang: str) -> list[dict]:
@@ -143,6 +144,8 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
             reply = templates.what_if_text(sit, facts, lang)
         elif intent == "raise_dispute":
             reply = templates.dispute_request_text(sit, facts, lang)
+        elif intent == "goodbye":
+            reply = templates.goodbye_text(lang)
         elif intent == "repeat":
             last = (db.query(Message).filter(Message.case_id == case.id, Message.role == "agent")
                     .order_by(Message.id.desc()).first())
@@ -170,7 +173,9 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
         audit.log(db, case.id, now, "NUMBER_CHECK_FAILED", {"numbers": bad})
         reply = templates.status_text(sit, facts, lang)
 
-    chips = [] if actions else templates.chips(sit, facts, lang)
+    chips = [] if actions or intent == "goodbye" else templates.chips(sit, facts, lang)
+    # Tells a hands-free client to stop listening after this reply is spoken.
+    end_conversation = intent in ("goodbye", "talk_to_human") or bool(actions)
     facts_out = speak_facts(facts, lang)
     agent_msg = add_agent_message(db, case, reply, now, chips=chips, actions=actions, facts=facts_out, intent=intent)
     if settings.TTS_ENABLED and p.sarvam:
@@ -182,7 +187,8 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
                                                   "intent": intent, "lang": lang}, actor="AGENT")
     return TurnResult(case=case, intent=intent, lang=lang, user_text=user_text, reply=reply, situation=sit,
                       facts=facts_out, chips=chips, actions=actions, user_message_id=user_msg.id,
-                      agent_message_id=agent_msg.id, audio_url=agent_msg.audio_url, stt=stt, chip_id=chip_id)
+                      agent_message_id=agent_msg.id, audio_url=agent_msg.audio_url, stt=stt, chip_id=chip_id,
+                      end_conversation=end_conversation)
 
 
 def speak_facts(f: templates.Facts, lang: str) -> dict:
