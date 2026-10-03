@@ -94,7 +94,7 @@ class EvidenceBundle(BaseModel):
     recent_claim_count: int = 0  # user's claims across cases in the repeat-claim window
     conflicts: list[Conflict] = Field(default_factory=list)  # sources disagree (-> F9)
     suspicious: list[Conflict] = Field(default_factory=list)  # claim vs evidence, repeat claims (-> F10)
-    within_lag: bool = False  # sources may still be settling
+    settling: list[Conflict] = Field(default_factory=list)  # disagreements still inside the allowed lag
     assembled_at: datetime
 
     def fingerprint(self) -> str:
@@ -137,6 +137,11 @@ class GateResult(BaseModel):
     @property
     def fully_passes(self) -> bool:
         return all(c.passed is True for c in self.checks)
+
+
+class RetryHistory(BaseModel):
+    accepted_count: int = 0
+    last_attempt_at: datetime | None = None
 
 
 class Decision(BaseModel):

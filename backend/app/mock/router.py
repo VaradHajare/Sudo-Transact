@@ -10,7 +10,9 @@ from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
 
 from app import clock
-from app.deps import get_db
+from app.config import Settings
+from app.deps import get_app_settings, get_db
+from app.engine.pipeline import sweep_open_cases
 from app.mock.sources import MockEvidenceSource, MockPaymentSource, MockUdir
 from app.models import MockBankLedger, MockMerchantCredit, MockNpciStatus, MockUdirComplaint, Transaction
 
@@ -77,21 +79,17 @@ class ClockIn(BaseModel):
 
 
 @router.post("/clock")
-def set_clock(body: ClockIn, db: Session = Depends(get_db)):
+def set_clock(body: ClockIn, db: Session = Depends(get_db), settings: Settings = Depends(get_app_settings)):
     if body.reset:
         clock.reset(db)
     seconds = body.advance_minutes * 60 + body.advance_hours * 3600 + body.advance_days * 86400
     if seconds < 0:
         raise HTTPException(400, "time only moves forward")
     clock.advance(db, seconds)
-    swept = after_clock_change(db)
+    # Until the step-6 scheduler owns this, a time-skip re-decides open cases right away.
+    swept = sweep_open_cases(db, settings, trigger="CLOCK")
     db.commit()
     return {**_clock_view(db), "cases_rechecked": swept}
-
-
-def after_clock_change(db: Session) -> list[dict]:
-    """Hook: re-decide open cases after a time-skip (until the step-6 scheduler owns this)."""
-    return []
 
 
 # ------------------------------------------------------------------ inject (change a payment's state)
