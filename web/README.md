@@ -25,6 +25,13 @@ A phone-width web app for the AI Resolve feature. Plain HTML, CSS and JS: no fra
 | `#/scan` | **Scan & Pay** (Home tile): a mock viewfinder; the backend "decodes" a demo merchant QR |
 | `#/send` | Amount → mock PIN → result. In the demo the payment **fails on purpose** (backend `DEMO_SCAN_PAY_FAILURE`). The failure shows for a moment, then the chat opens with the **investigation**: the spoken intro; three agents (Bank, Rules, Follow-up) appearing one by one, each "thinking" (`InvestigationPanel`, timings `VOICE.agentThinkMs` / `agentLineMs`); the spoken conclusion; then hands-free listening. |
 
+## Talk to a human
+When a reply carries a `CALL_HUMAN` action:
+- the chat shows a `CallCard` (a `tel:` link with the support number);
+- after the reply has been spoken, `ringPhone` opens `tel:<phone>`.
+
+In the Expo app, `tel:` links are handed to Android, which opens the dialer.
+
 ## Language
 - **Toggle:** every header has an **EN / हिं / मरा** toggle (`LangToggle`).
 - **Where the text lives:** all UI text is in `I18N` in `data.js`, read with `t(key, vars)`. Dates and status labels follow the language.

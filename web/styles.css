@@ -421,6 +421,18 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   .agent, .agent__lines li, .inv--live .inv__spark, .agent--active .agent__avatar { animation: none; }
 }
 
+/* ------------------------------------------------------------------ call card ("talk to a human") */
+.call-card {
+  align-self: flex-start; display: flex; align-items: center; gap: var(--space-3); max-width: 100%;
+  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-success-bg);
+  border: 1px solid var(--color-success); color: var(--color-text);
+}
+.call-card__icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: var(--radius-pill); background: var(--color-success); color: #fff; flex: none; }
+.call-card__main { display: flex; flex-direction: column; min-width: 0; }
+.call-card__title { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.call-card__number { font-weight: 700; white-space: nowrap; }
+.call-card__btn { margin-left: auto; padding: var(--space-2) var(--space-3); border-radius: var(--radius-pill); background: var(--color-success); color: #fff; font-weight: 700; font-size: var(--font-size-sm); white-space: nowrap; }
+
 /* ------------------------------------------------------------------ Scan & Pay */
 .tile--live { cursor: pointer; }
 .tile--live .tile__icon { background: var(--color-brand-navy); color: #fff; }

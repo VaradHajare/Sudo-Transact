@@ -241,6 +241,19 @@ _BRIEFING_KEYS = {"DISPUTED": "DISPUTED", "DUPLICATE_DISPUTED": "DISPUTED"}
 # Situations that produce an agent "update" message in the chat when they happen in the background.
 UPDATE_SITUATIONS = {"DISPUTED", "DUPLICATE_DISPUTED", "REVERSED", "SUCCEEDED", "RESOLVED_BY_RETRY"}
 
+# ------------------------------------------------------------------ "talk to a human" with a support line
+# Spoken just before the app rings the support number. No digits here (the number is shown, not spoken).
+CALLING = {
+    "en": "I'm connecting you to a support specialist now. They already have your case details, so you won't need to explain it again.",
+    "hi": "मैं अभी आपको एक सहायता विशेषज्ञ से जोड़ रहा हूँ। उनके पास आपके केस की पूरी जानकारी है, इसलिए आपको दोबारा कुछ बताना नहीं पड़ेगा।",
+    "mr": "मी आत्ता तुम्हाला एका सहाय्यता तज्ञाशी जोडत आहे. त्यांच्याकडे तुमच्या प्रकरणाची संपूर्ण माहिती आहे, त्यामुळे तुम्हाला पुन्हा काही सांगावे लागणार नाही.",
+}
+
+
+def calling_text(lang: str) -> str:
+    return CALLING[_lang(lang)]
+
+
 # ------------------------------------------------------------------ human reviewer's outcome (posted to the chat)
 # The reviewer's own notes stay internal; the user gets a fixed, number-checked message.
 REVIEW = {

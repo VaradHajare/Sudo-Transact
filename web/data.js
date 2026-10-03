@@ -70,6 +70,7 @@
       micBlocked: "Microphone permission is blocked. Allow it in the browser, or type instead.",
       noMic: "No microphone available. Please type instead.", listenHint: "Listening… speak in any language",
       gotIt: "Got it…", stopSend: "Stop listening and send", micStarting: "Starting the microphone…", cancel: "Cancel",
+      callTitle: "Support specialist", callNow: "Call now", calling: "Calling…",
     },
     hi: {
       prototype: "प्रोटोटाइप · नकली डेटा, असली पैसा नहीं",
@@ -116,6 +117,7 @@
       micBlocked: "माइक की अनुमति बंद है। ब्राउज़र में अनुमति दें, या लिखें।",
       noMic: "कोई माइक नहीं मिला। कृपया लिखें।", listenHint: "सुन रहा हूँ… किसी भी भाषा में बोलें",
       gotIt: "समझ गया…", stopSend: "सुनना बंद करें और भेजें", micStarting: "माइक चालू हो रहा है…", cancel: "रद्द करें",
+      callTitle: "सहायता विशेषज्ञ", callNow: "अभी कॉल करें", calling: "कॉल लग रही है…",
     },
     mr: {
       prototype: "प्रोटोटाइप · बनावट डेटा, खरे पैसे नाहीत",
@@ -162,6 +164,7 @@
       micBlocked: "माइकची परवानगी बंद आहे. ब्राउझरमध्ये परवानगी द्या, किंवा लिहा.",
       noMic: "माइक उपलब्ध नाही. कृपया लिहा.", listenHint: "ऐकत आहे… कोणत्याही भाषेत बोला",
       gotIt: "समजले…", stopSend: "ऐकणे थांबवा आणि पाठवा", micStarting: "माइक सुरू होत आहे…", cancel: "रद्द करा",
+      callTitle: "सहाय्यता तज्ञ", callNow: "आत्ता कॉल करा", calling: "कॉल लागत आहे…",
     },
   };
 

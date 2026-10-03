@@ -51,6 +51,7 @@ The quick-tunnel address changes every time `tunnel.ps1` starts. When it changes
 ## Notes
 
 - **Security:** while the tunnel is open, anyone with its address can use the demo, and the demo login has no password. The LLM and voice calls run on your keys. Close the tunnel (Ctrl+C) after the demo.
+- **Talk to a human:** the app hands `tel:` links to Android, so the dialer opens with the support number (`HUMAN_SUPPORT_PHONE` in `backend/.env`), and the user taps call once. To place the call with no tap you need Android's `CALL_PHONE` permission, which Expo Go doesn't have: it would need a standalone APK build.
 - **Audio links** are relative (`PUBLIC_BASE_URL` empty in `backend/.env`), so they work through any tunnel without changing config.
 - **Live preview:** Android's WebView has no browser speech recognizer, so the live words preview doesn't appear while you speak. The real transcript (Sarvam) does.
 - **Installable APK (optional, no Expo Go):** `npx eas build -p android --profile preview` needs a free Expo account (`npx eas login`) and an `eas.json`. Ask for it if you want one.

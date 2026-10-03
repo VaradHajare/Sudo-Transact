@@ -315,6 +315,15 @@ This returns `201 {"transaction": {...status "SUCCESS"...}, "case": {... "state"
 | GET | `/v1/review/evaluation` | The latest simulator report (`docs/evaluation.json`), or 404 if none has been run |
 | DELETE | `/v1/me/data` | Deletes the user's chat transcripts and claims |
 
+## "Talk to a human" rings the support line
+
+When `HUMAN_SUPPORT_PHONE` is set in `backend/.env` (e.g. `+91XXXXXXXXXX`), a `talk_to_human` turn (voice, text or the chip) does three things:
+- escalates the case as before;
+- replies *"I'm connecting you to a support specialist now…"* in the reply language (the number is never spoken);
+- returns `actions: [{"type": "CALL_HUMAN", "phone": "+91…"}]`.
+
+The app shows a call card and, once the reply has been spoken, opens `tel:<phone>`. On the phone, that opens the dialer. Without the setting, the turn only escalates, as before.
+
 ## UI language (team decision 4)
 
 The app sends `X-UI-Lang: en | hi | mr` on every `/v1` call. With it:

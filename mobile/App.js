@@ -11,7 +11,8 @@ import { requestRecordingPermissionsAsync } from 'expo-audio';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, BackHandler, KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, Text, TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -155,6 +156,14 @@ function AppScreen({ url, onChangeServer }) {
         renderLoading={() => (
           <View style={styles.loading}><ActivityIndicator size="large" color={COLORS.sky} /></View>
         )}
+        // "Talk to a human" rings the support line: tel: links go to the phone's dialer.
+        onShouldStartLoadWithRequest={(req) => {
+          if (/^(tel|sms|mailto):/i.test(req.url)) {
+            Linking.openURL(req.url).catch(() => {});
+            return false;
+          }
+          return true;
+        }}
         onNavigationStateChange={(nav) => { canGoBack.current = nav.canGoBack; }}
         onError={(e) => setFailed(e.nativeEvent.description || 'The page could not be loaded.')}
         onHttpError={(e) => { if (e.nativeEvent.statusCode >= 500) setFailed(`Server error ${e.nativeEvent.statusCode}.`); }}

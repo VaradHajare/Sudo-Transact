@@ -231,6 +231,29 @@
       </details>`;
   }
 
+  /** "+919876543210" -> "+91 98765 43210" */
+  function formatPhone(phone) {
+    const m = /^\+91(\d{5})(\d{5})$/.exec(phone || "");
+    return m ? `+91 ${m[1]} ${m[2]}` : phone;
+  }
+
+  /** CallCard: under the agent's "connecting you" reply; also the fallback if the dialer didn't open.
+   *  props: { phone } */
+  function CallCard({ phone }) {
+    return `
+      <a class="call-card" href="tel:${esc(phone)}">
+        <span class="call-card__icon">${Icon.phone}</span>
+        <span class="call-card__main"><span class="call-card__title">${esc(t("callTitle"))}</span>
+          <span class="call-card__number">${esc(formatPhone(phone))}</span></span>
+        <span class="call-card__btn">${esc(t("callNow"))}</span>
+      </a>`;
+  }
+
+  /** Ring a number: opens the phone's dialer (the native app shell hands tel: links to Android). */
+  function ringPhone(phone) {
+    window.location.href = `tel:${phone}`;
+  }
+
   /** KeyValue. props: { k, v } */
   function KeyValue({ k, v }) {
     return v ? `<div class="kv"><span class="kv__k">${esc(k)}</span><span class="kv__v">${esc(v)}</span></div>` : "";
@@ -399,7 +422,9 @@
       const showChips = !state.pending && !rev && !investigating; // chips only once the reply has finished
       const body = shown.map((m, i) => {
         const inv = (m.actions || []).find((a) => a.type === "INVESTIGATION");
-        const panel = inv ? InvestigationPanel({ agents: inv.agents, progress: state.inv && state.inv.msgId === m.id ? state.inv : null }) : "";
+        const call = (m.actions || []).find((a) => a.type === "CALL_HUMAN");
+        const panel = (inv ? InvestigationPanel({ agents: inv.agents, progress: state.inv && state.inv.msgId === m.id ? state.inv : null }) : "")
+          + (call && !(rev && m.id === rev.id) ? CallCard({ phone: call.phone }) : "");
         if (rev && m.id === rev.id) {
           // not started speaking yet -> "thinking" dots; then the words appear as they are spoken
           return (rev.shown === 0 ? ThinkingDots() : ChatBubble({ message: m, shownText: rev.tokens.slice(0, rev.shown).join("") })) + panel;
@@ -509,6 +534,11 @@
         state.busy = false;
         state.pending = null;
         const playing = presentReply(agentMsg, res.speak && res.speak.audio_url);
+        const call = (res.actions || []).find((a) => a.type === "CALL_HUMAN");
+        if (call) {
+          // "Talk to a human": say "connecting you…", then ring the support line.
+          playing.then(() => { if (isCurrent()) ringPhone(call.phone); });
+        }
         const pay = (res.actions || []).find((a) => a.type === "OPEN_PAY_SCREEN");
         if (pay) {
           // Let the read-back finish ("Paying ₹350 to …") before the pay screen opens.

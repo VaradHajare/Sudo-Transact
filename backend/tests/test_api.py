@@ -365,3 +365,34 @@ def test_unknown_payee_words_keep_the_original_name():
     assert local_name("Kaveri Restaurant", "mr") == "कावेरी रेस्टॉरंट"
     assert local_name("Zorba Foods", "hi") == "Zorba Foods"  # never half-translated or guessed
     assert local_name("Kaveri Restaurant", "en") == "Kaveri Restaurant"
+
+
+# ---- "talk to a human" rings the support line (HUMAN_SUPPORT_PHONE)
+def test_talk_to_human_rings_the_support_line(api):
+    api.app.state.settings.HUMAN_SUPPORT_PHONE = "+911234567890"
+    cid = open_case(api, "txn_s2_citymobiles")["case"]["id"]
+    r = say(api, cid, chip="talk_to_human")
+    assert r["actions"] == [{"type": "CALL_HUMAN", "phone": "+911234567890"}]
+    assert r["speak"]["text"].startswith("I'm connecting you to a support specialist")
+    assert r["end_conversation"] is True and r["chips"] == []
+    assert r["case"]["state"] == "ESCALATED"  # the reviewer still gets the case file
+    # asking again (already escalated) still rings, in the user's language
+    r = api.post("/v1/voice/turn", json={"case_id": cid, "text": "kisi insaan se baat karao"},
+                 headers={"X-UI-Lang": "hi"}).json()
+    assert r["actions"][0]["type"] == "CALL_HUMAN" and r["speak"]["text"].startswith("मैं अभी आपको")
+    assert "1234567890" not in r["speak"]["text"]  # the number is shown, never spoken
+
+
+def test_talk_to_human_without_a_support_line_only_escalates(api):
+    cid = open_case(api, "txn_s2_citymobiles")["case"]["id"]
+    r = say(api, cid, chip="talk_to_human")
+    assert r["actions"] == [] and r["case"]["state"] == "ESCALATED"
+
+
+def test_support_phone_must_be_a_full_number():
+    import pytest
+    from pydantic import ValidationError
+    from app.config import Settings
+    assert Settings(_env_file=None, HUMAN_SUPPORT_PHONE="+91 98765-43210").HUMAN_SUPPORT_PHONE == "+919876543210"
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, HUMAN_SUPPORT_PHONE="9876543210")

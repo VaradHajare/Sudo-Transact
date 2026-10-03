@@ -75,6 +75,12 @@
     - `late_debit` makes the S1 "yes" hit the live re-check.
   - Both have API tests and console buttons.
 
+- **"Talk to a human" rings the support line** (owner request, 2026-10-03).
+  - **Setting:** `HUMAN_SUPPORT_PHONE` (in `backend/.env` only; validated as +country digits).
+  - **Backend:** a `talk_to_human` turn escalates as before, replies "connecting you to a support specialist" (`templates.CALLING`, en/hi/mr, no digits spoken), and returns a `CALL_HUMAN` action.
+  - **Web:** a call card, and `tel:` is opened after the reply is spoken. The Expo shell hands `tel:` to Android's dialer.
+  - **Limit:** Expo Go can only open the dialer (one tap to call). A no-tap call needs `CALL_PHONE` in a standalone APK.
+  - **Checked in Chrome:** reply → card with +91 number → `tel:` navigation. Tests: 230 pass.
 - **Three agents instead of six, and payee names in the UI language** (owner request, 2026-10-03).
   - **Agents:** Bank (NPCI + ledger + merchant), Rules (diagnosis, rule, retry safety, deadline, live re-check) and Follow-up. The removed agents' content is folded in, not dropped.
   - **Payee names:** in Devanagari for hi / mr via a reviewed word dictionary (`app/conversation/names.py`, not the LLM). An unknown word keeps the original name. This applies to lists, the case card, replies, agents, the scan screen and the retry pay screen (`payee_display`). Payments keep `payee_name`.

@@ -91,6 +91,10 @@ Say plainly what is mocked and what is real:
 - **Mocked:** Paytm records, NPCI, bank, merchant, UDIR, and the money.
 - **Real:** Sarvam speech-to-text and text-to-speech, the DeepSeek LLM, and the decision engine.
 
+## Optional: talk to a human
+
+In any payment's chat, say **"I want to talk to a human"** (or "kisi insaan se baat karao", or tap **Talk to a human**). The agent says it's connecting you, a green call card shows the support number, and the phone's dialer opens with the number filled in. Tap call. The case also goes to the console's review queue with its case file. The number comes from `HUMAN_SUPPORT_PHONE` in `backend/.env`.
+
 ## Optional: bank outage
 
 Click **Bank outage: fail a payment** a few times. Each click fails a new payment with the bank down, and each is prepared in the background as F6 → WAIT. Tap the mic on any of them: "your bank is having trouble, your money is safe, don't pay again". The **Review queue** count does not go up: no human was needed. *(Test: `test_demo_bank_outage_is_answered_without_a_human`.)*

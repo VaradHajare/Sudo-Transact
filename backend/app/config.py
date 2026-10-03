@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # Demo: a payment made from Scan & Pay fails on purpose, and the agent offers help at once.
     # debited (money taken, not credited: F4) | declined (F1) | bank_down (F6) | pending (F3) | off
     DEMO_SCAN_PAY_FAILURE: str = "debited"
+    # "Talk to a human" rings this support number (the app opens the phone's dialer). Empty = no
+    # call; the case is still escalated with its case file. Keep real numbers in .env only.
+    HUMAN_SUPPORT_PHONE: str = ""
     DEMO_USER_ID: str = "u_demo"
     WEB_DIR: str = str(REPO_DIR / "web")
 
@@ -95,6 +98,14 @@ class Settings(BaseSettings):
             path = Path(v[len(prefix):])
             if not path.is_absolute():
                 v = prefix + (BACKEND_DIR / path).resolve().as_posix()
+        return v
+
+    @field_validator("HUMAN_SUPPORT_PHONE")
+    @classmethod
+    def phone_number(cls, v: str) -> str:
+        v = v.replace(" ", "").replace("-", "")
+        if v and not (v.startswith("+") and v[1:].isdigit() and 8 <= len(v) <= 16):
+            raise ValueError("HUMAN_SUPPORT_PHONE must look like +919876543210")
         return v
 
     @field_validator("MEDIA_DIR")

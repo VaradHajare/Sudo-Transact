@@ -126,8 +126,14 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
             escalate(db, case, "USER_REQUESTED", now, out.bundle, out.diagnosis, out.decision, actor="USER")
         sit = case_situation(case)
         facts = case_facts(db, case)
-        reply = (templates.dispute_request_text("ESCALATED", facts, lang) if already
-                 else templates.status_text("ESCALATED_USER", facts, lang))
+        if settings.HUMAN_SUPPORT_PHONE:
+            # Ring the support line: the app opens the dialer once this reply has been spoken.
+            reply = templates.calling_text(lang)
+            actions = [{"type": "CALL_HUMAN", "phone": settings.HUMAN_SUPPORT_PHONE}]
+            audit.log(db, case.id, now, "HUMAN_CALL_REQUESTED", {"already_escalated": already}, actor="USER")
+        else:
+            reply = (templates.dispute_request_text("ESCALATED", facts, lang) if already
+                     else templates.status_text("ESCALATED_USER", facts, lang))
     elif intent == "confirm_retry" and case.state == "RETRY_OFFERED":
         res = confirm_retry(db, settings, case)
         sit, facts = case_situation(case), case_facts(db, case)
