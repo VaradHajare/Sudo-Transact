@@ -23,6 +23,7 @@ docs/PROGRESS.md        what is done and what is next (keep updated)
 docs/API_CONTRACT.md    request/response examples for every endpoint
 backend/                FastAPI app, tests, .env
 web/                    the demo UI (index.html, app.js, data.js, styles.css, assets)
+mobile/                 Expo (Android) shell that shows web/ in a WebView over an HTTPS tunnel, for the phone demo
 ```
 
 ## Team

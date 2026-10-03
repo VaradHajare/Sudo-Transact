@@ -39,6 +39,8 @@ copy .env.example .env            # then add your keys (see "Configuration")
 
 Open **http://localhost:8000**. Tap **Scan & Pay**, enter an amount and any PIN. The payment fails on purpose (demo). The AI agent opens, six agents investigate in front of you, and it tells you what happened. The **EN / हिं / मरा** toggle in the header sets the app's language, and the agent answers in it. Or tap **City Mobiles ₹1,499 → mic**, and say or type `paise kat gaye par mila nahi`. On Home, **Skip time +1 day** (twice) moves the mock clock past the deadline to show the automatic dispute.
 
+**On your Android phone:** the Expo app in [`mobile/`](mobile/README.md) shows the same app full screen. Run the backend, open an HTTPS tunnel with `mobile\tunnel.ps1`, run `npx expo start` in `mobile/`, and scan the QR code with Expo Go.
+
 For the pitch, open **http://localhost:8000/console.html**. It shows the app in a phone frame next to the live agent activity panel, plus the review queue and the evaluation numbers. The full demo script, click by click, is in [`docs/DEMO.md`](docs/DEMO.md).
 
 To re-run the evaluation: `.venv\Scripts\python scripts\run_sim.py` (3,000 cases; add `--no-llm` to skip B2). Results go to [`docs/EVALUATION.md`](docs/EVALUATION.md).
@@ -67,6 +69,7 @@ backend/            FastAPI app (Python), SQLite, tests
   app/api/v1/       REST API for the app
   app/scheduler.py  background SLA / dispute worker (jobs table)
 web/                demo app (plain HTML/CSS/JS, served by FastAPI at /)
+mobile/             Expo Android app: the web app in a WebView, for the phone demo
 docs/SPEC.md        product spec (v2.4)
 docs/API_CONTRACT.md request/response examples for every endpoint
 docs/PROGRESS.md    detailed build log and decisions

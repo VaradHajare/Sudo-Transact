@@ -20,7 +20,9 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     SESSION_TOKEN_SECRET: str = "dev-only-change-me"
     SESSION_TOKEN_TTL_SECONDS: int = 86400
-    PUBLIC_BASE_URL: str = "http://localhost:8000"
+    # Prefix for reply-audio links. Empty = relative links (/v1/audio/...), which work through any
+    # host or tunnel (phone demo). Set it only for a client on another origin that needs absolute URLs.
+    PUBLIC_BASE_URL: str = ""
     DEMO_MODE: bool = True
     SEED_DEMO_DATA: bool = True
     # Demo: a payment made from Scan & Pay fails on purpose, and the agent offers help at once.

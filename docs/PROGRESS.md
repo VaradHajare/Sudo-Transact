@@ -75,6 +75,18 @@
     - `late_debit` makes the S1 "yes" hit the live re-check.
   - Both have API tests and console buttons.
 
+- **Phone app (Expo SDK 57, Android): `mobile/`** (owner request, 2026-10-03). A WebView shell around `web/`, so the phone shows exactly the same app.
+  - **Native side:**
+    - a server-address screen, remembered in AsyncStorage;
+    - the mic permission is requested up front (`expo-audio`), and the page's `getUserMedia` is granted;
+    - replies play automatically (`mediaPlaybackRequiresUserAction=false`);
+    - the Android back button works.
+  - **Tunnel:** the phone reaches the laptop through a cloudflared HTTPS tunnel (`mobile/tunnel.ps1`), because the mic needs HTTPS.
+  - **Backend:** `PUBLIC_BASE_URL` now defaults to empty, so audio links are relative and work through any tunnel.
+  - **Checks:**
+    - `expo-doctor` 21/21; the Android bundle exports.
+    - The full flow was run through a real quick tunnel over HTTPS (scan → failed → six agents → spoken conclusion → listening); both reply audios were served.
+    - Not yet run on a physical phone.
 - **Investigation by six agents + UI language toggle** (owner request, 2026-10-03; CLAUDE.md decisions 3 and 4). This replaces the "Would you like me to check?" offer below.
   - **Investigation:**
     - After a Scan & Pay failure, `/v1/cases/open {"investigate": true}` returns an intro, six agents (Network, Bank, Diagnosis, Rules, Safety, Follow-up) and a conclusion.

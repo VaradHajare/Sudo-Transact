@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "AI Resolve",
+    "slug": "ai-resolve-demo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#002970",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sudotransact.airesolve"
+    },
+    "android": {
+      "package": "com.sudotransact.airesolve",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "AI Resolve listens when you tap the mic, so you can ask about a failed payment by voice.",
+          "recordAudioAndroid": true
+        }
+      ],
+      "expo-asset"
+    ]
+  }
+}
