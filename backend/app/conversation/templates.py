@@ -9,6 +9,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.conversation.format import day_month, inr
+from app.conversation.names import local_name
 from app.domain import CaseClass as C
 
 LANGS = ("en", "hi", "mr")
@@ -25,7 +26,7 @@ class Facts(BaseModel):
 
     def vars(self, lang: str) -> dict:
         return {
-            "amount": inr(self.amount_paise), "payee": self.payee,
+            "amount": inr(self.amount_paise), "payee": local_name(self.payee, lang),
             "date": day_month(self.expected_by, lang), "rdate": day_month(self.reversed_at, lang),
             "ref": self.dispute_ref or "", "comp": inr(self.compensation_paise or 0),
             "days": str(self.days_late or 0),

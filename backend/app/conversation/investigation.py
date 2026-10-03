@@ -1,13 +1,11 @@
 """The investigation shown in the chat right after a payment fails (team decision 3).
 
-Six agents, each a view onto work the system really did for this payment:
+Three agents, each a view onto work the system really did for this payment:
 
-  network    NPCI status                              (evidence the decision used)
-  bank       bank ledger + merchant credit            (evidence the decision used)
-  diagnosis  class F1-F10, LLM only for AMBIGUOUS     (DIAGNOSED / LLM_CLASSIFIED events)
-  rules      the decision rule and its action         (DECIDED event, retry gate, SLA deadline)
-  safety     live re-fetch of every source            (done while opening; RECHECK_CHANGED if anything moved)
-  followup   what happens next without the user       (the queued job, deadline, dispute)
+  bank      NPCI status, bank ledger, merchant credit   (the evidence the decision used)
+  rules     diagnosis F1-F10, the decision rule, retry  (DIAGNOSED / LLM_CLASSIFIED / DECIDED events, SLA
+            safety, deadline, and the live re-check      deadline, the re-fetch done while opening)
+  followup  what happens next without the user         (the queued job, deadline, dispute)
 
 Nothing here is invented: every line is a template filled from those records, in the UI language.
 The conclusion is the normal status answer, so follow-up questions continue exactly as before.
@@ -22,18 +20,16 @@ from app.config import Settings
 from app.conversation import templates
 from app.conversation.facts import case_facts, case_situation
 from app.conversation.format import day_month, inr
+from app.conversation.names import local_name
 from app.engine import audit
 from app.models import Case, Job, Transaction
 
-AGENTS = ("network", "bank", "diagnosis", "rules", "safety", "followup")
+AGENTS = ("bank", "rules", "followup")
 
 NAMES = {
-    "en": {"network": "Network agent", "bank": "Bank agent", "diagnosis": "Diagnosis agent",
-           "rules": "Rules agent", "safety": "Safety agent", "followup": "Follow-up agent"},
-    "hi": {"network": "नेटवर्क एजेंट", "bank": "बैंक एजेंट", "diagnosis": "निदान एजेंट",
-           "rules": "नियम एजेंट", "safety": "सुरक्षा एजेंट", "followup": "फ़ॉलो-अप एजेंट"},
-    "mr": {"network": "नेटवर्क एजंट", "bank": "बँक एजंट", "diagnosis": "निदान एजंट",
-           "rules": "नियम एजंट", "safety": "सुरक्षा एजंट", "followup": "पाठपुरावा एजंट"},
+    "en": {"bank": "Bank agent", "rules": "Rules agent", "followup": "Follow-up agent"},
+    "hi": {"bank": "बैंक एजेंट", "rules": "नियम एजेंट", "followup": "फ़ॉलो-अप एजेंट"},
+    "mr": {"bank": "बँक एजंट", "rules": "नियम एजंट", "followup": "पाठपुरावा एजंट"},
 }
 
 T = {
@@ -41,88 +37,65 @@ T = {
         "intro_FAILED": "Your ₹{amount} payment to {payee} failed. I'm running a detailed investigation.",
         "intro_PENDING": "Your ₹{amount} payment to {payee} is stuck. I'm running a detailed investigation.",
         "done": "Investigation complete. ",
-        "n_ask": "Asking NPCI about UPI ref {ref}…", "n_status": "NPCI says: {status}{final}.",
-        "n_reason": "Reason code: {code}.", "n_down": "NPCI did not respond.", "final": " (final)",
-        "b_ask": "Checking your bank account…", "b_none": "No money was taken from your account.",
+        "b_check": "Checking with NPCI, your bank and {payee}…",
+        "s_live_same": "Re-checked everything live just now: nothing changed, so it's safe to tell you.",
+        "s_live_changed": "Re-checked live just now: {sources} changed, so I decided again on the fresh data.", "n_status": "NPCI says: {status}{final}.", "n_down": "NPCI did not respond.", "final": " (final)", "b_none": "No money was taken from your account.",
         "b_debited": "₹{amount} was taken from your account.", "b_twice": "₹{amount} was taken twice.",
-        "b_reversed": "The money already came back to your account.", "b_down": "Your bank did not respond.",
-        "m_ask": "Checking whether {payee} received it…", "m_yes": "{payee} received the money.",
+        "b_reversed": "The money already came back to your account.", "b_down": "Your bank did not respond.", "m_yes": "{payee} received the money.",
         "m_no": "{payee} did not receive it.", "m_down": "{payee}'s bank did not respond.",
-        "d_match": "Matching the evidence against 10 known failure types…",
         "d_conflict": "The sources disagree: {codes}.", "d_suspicious": "The claim doesn't match the records: {codes}.",
         "d_llm": "The rules couldn't place it, so the AI classifier helped (confidence {conf}).",
         "d_result": "Diagnosis: {label} ({code}).",
-        "r_apply": "Applying the decision rules in order. Rules decide, not the AI…",
         "r_rule": "Rule {rule}: {action}.", "r_gate_ok": "Safe-retry check: every condition passed.",
         "r_no_retry": "Paying again is not safe right now.",
         "r_deadline": "The bank must return it by {date} (RBI T+{days}).",
-        "s_refetch": "Fetching NPCI, your bank and {payee} again, right now…",
-        "s_same": "Nothing changed since the decision. It's safe to tell you.",
-        "s_changed": "Something changed ({sources}), so the decision was made again on fresh data.",
-        "s_money": "No money moves without this check.",
         "f_deadline": "I'm watching the deadline: {date}.",
         "f_auto": "If the money isn't back by then, I'll raise a complaint myself and claim ₹{per_day} a day as compensation.",
         "f_disputed": "Complaint {ref} is raised. I'll follow up every day until it's settled.",
         "f_recheck": "I'll check again in {mins} minutes and tell you here.",
         "f_nothing_taken": "Nothing to chase: no money was taken.", "f_done": "Nothing left to chase.",
         "f_human": "A human expert has the full case file and will reply in this chat.",
-        "v_ok": "Verified", "v_changed": "Refreshed",
     },
     "hi": {
         "intro_FAILED": "{payee} को आपका {amount} रुपये का पेमेंट असफल रहा। मैं इसकी पूरी जाँच कर रहा हूँ।",
         "intro_PENDING": "{payee} को आपका {amount} रुपये का पेमेंट अटका हुआ है। मैं इसकी पूरी जाँच कर रहा हूँ।",
         "done": "जाँच पूरी हुई। ",
-        "n_ask": "NPCI से UPI रेफ़ {ref} के बारे में पूछ रहा हूँ…", "n_status": "NPCI के अनुसार: {status}{final}।",
-        "n_reason": "कारण कोड: {code}।", "n_down": "NPCI ने जवाब नहीं दिया।", "final": " (अंतिम)",
-        "b_ask": "आपका बैंक खाता देख रहा हूँ…", "b_none": "आपके खाते से कोई पैसा नहीं कटा।",
+        "b_check": "NPCI, आपके बैंक और {payee} से जानकारी ले रहा हूँ…",
+        "s_live_same": "अभी-अभी सब कुछ दोबारा जाँचा: कुछ नहीं बदला, इसलिए आपको बताना सुरक्षित है।",
+        "s_live_changed": "अभी-अभी दोबारा जाँचा: {sources} में बदलाव था, इसलिए नई जानकारी पर फ़ैसला दोबारा लिया।", "n_status": "NPCI के अनुसार: {status}{final}।", "n_down": "NPCI ने जवाब नहीं दिया।", "final": " (अंतिम)", "b_none": "आपके खाते से कोई पैसा नहीं कटा।",
         "b_debited": "आपके खाते से {amount} रुपये कटे।", "b_twice": "{amount} रुपये दो बार कटे।",
-        "b_reversed": "पैसा पहले ही आपके खाते में वापस आ चुका है।", "b_down": "आपके बैंक ने जवाब नहीं दिया।",
-        "m_ask": "देख रहा हूँ कि {payee} को पैसा मिला या नहीं…", "m_yes": "{payee} को पैसा मिल गया।",
+        "b_reversed": "पैसा पहले ही आपके खाते में वापस आ चुका है।", "b_down": "आपके बैंक ने जवाब नहीं दिया।", "m_yes": "{payee} को पैसा मिल गया।",
         "m_no": "{payee} को पैसा नहीं मिला।", "m_down": "{payee} के बैंक ने जवाब नहीं दिया।",
-        "d_match": "सबूतों को 10 तरह की जानी-पहचानी गड़बड़ियों से मिला रहा हूँ…",
         "d_conflict": "स्रोतों की जानकारी आपस में मेल नहीं खाती: {codes}।",
         "d_suspicious": "दावा रिकॉर्ड से मेल नहीं खाता: {codes}।",
         "d_llm": "नियम इसे तय नहीं कर पाए, इसलिए AI ने मदद की (भरोसा {conf})।",
         "d_result": "निदान: {label} ({code})।",
-        "r_apply": "फ़ैसले के नियम क्रम से लगा रहा हूँ। फ़ैसला नियम करते हैं, AI नहीं…",
         "r_rule": "नियम {rule}: {action}।", "r_gate_ok": "सुरक्षित-दोबारा-भुगतान जाँच: हर शर्त पूरी हुई।",
         "r_no_retry": "अभी दोबारा भेजना सुरक्षित नहीं है।",
         "r_deadline": "बैंक को {date} तक पैसा लौटाना है (RBI T+{days})।",
-        "s_refetch": "NPCI, आपके बैंक और {payee} से अभी दोबारा जानकारी ले रहा हूँ…",
-        "s_same": "फ़ैसले के बाद कुछ नहीं बदला। आपको बताना सुरक्षित है।",
-        "s_changed": "कुछ बदला ({sources}), इसलिए नई जानकारी पर फ़ैसला दोबारा लिया गया।",
-        "s_money": "इस जाँच के बिना कोई पैसा नहीं हिलता।",
         "f_deadline": "मैं समय-सीमा पर नज़र रख रहा हूँ: {date}।",
         "f_auto": "अगर तब तक पैसा वापस नहीं आया, तो मैं खुद शिकायत दर्ज करूँगा और रोज़ {per_day} रुपये मुआवज़ा माँगूँगा।",
         "f_disputed": "शिकायत {ref} दर्ज है। मामला सुलझने तक मैं रोज़ फ़ॉलो-अप करूँगा।",
         "f_recheck": "मैं {mins} मिनट में फिर जाँच करूँगा और यहीं बताऊँगा।",
         "f_nothing_taken": "पीछा करने को कुछ नहीं: कोई पैसा नहीं कटा।", "f_done": "अब पीछा करने को कुछ बाकी नहीं।",
         "f_human": "एक विशेषज्ञ के पास पूरी केस फ़ाइल है, वे इसी चैट में जवाब देंगे।",
-        "v_ok": "पुष्टि हुई", "v_changed": "ताज़ा किया",
     },
     "mr": {
         "intro_FAILED": "{payee} ला केलेले तुमचे {amount} रुपयांचे पेमेंट अयशस्वी झाले. मी याची सविस्तर तपासणी करत आहे.",
         "intro_PENDING": "{payee} ला केलेले तुमचे {amount} रुपयांचे पेमेंट अडकले आहे. मी याची सविस्तर तपासणी करत आहे.",
         "done": "तपासणी पूर्ण झाली. ",
-        "n_ask": "NPCI कडे UPI रेफ {ref} बद्दल विचारत आहे…", "n_status": "NPCI नुसार: {status}{final}.",
-        "n_reason": "कारण कोड: {code}.", "n_down": "NPCI ने प्रतिसाद दिला नाही.", "final": " (अंतिम)",
-        "b_ask": "तुमचे बँक खाते तपासत आहे…", "b_none": "तुमच्या खात्यातून पैसे कापले गेले नाहीत.",
+        "b_check": "NPCI, तुमची बँक आणि {payee} कडून माहिती घेत आहे…",
+        "s_live_same": "आत्ताच सर्व पुन्हा तपासले: काहीही बदलले नाही, म्हणून तुम्हाला सांगणे सुरक्षित आहे.",
+        "s_live_changed": "आत्ताच पुन्हा तपासले: {sources} मध्ये बदल होता, म्हणून नव्या माहितीवर निर्णय पुन्हा घेतला.", "n_status": "NPCI नुसार: {status}{final}.", "n_down": "NPCI ने प्रतिसाद दिला नाही.", "final": " (अंतिम)", "b_none": "तुमच्या खात्यातून पैसे कापले गेले नाहीत.",
         "b_debited": "तुमच्या खात्यातून {amount} रुपये कापले गेले.", "b_twice": "{amount} रुपये दोनदा कापले गेले.",
-        "b_reversed": "पैसे आधीच तुमच्या खात्यात परत आले आहेत.", "b_down": "तुमच्या बँकेने प्रतिसाद दिला नाही.",
-        "m_ask": "{payee} ला पैसे मिळाले का ते तपासत आहे…", "m_yes": "{payee} ला पैसे मिळाले.",
+        "b_reversed": "पैसे आधीच तुमच्या खात्यात परत आले आहेत.", "b_down": "तुमच्या बँकेने प्रतिसाद दिला नाही.", "m_yes": "{payee} ला पैसे मिळाले.",
         "m_no": "{payee} ला पैसे मिळाले नाहीत.", "m_down": "{payee} च्या बँकेने प्रतिसाद दिला नाही.",
-        "d_match": "पुराव्यांची 10 ओळखीच्या बिघाड-प्रकारांशी तुलना करत आहे…",
         "d_conflict": "स्रोतांची माहिती जुळत नाही: {codes}.", "d_suspicious": "दावा नोंदींशी जुळत नाही: {codes}.",
         "d_llm": "नियमांना ठरवता आले नाही, म्हणून AI ने मदत केली (खात्री {conf}).",
         "d_result": "निदान: {label} ({code}).",
-        "r_apply": "निर्णयाचे नियम क्रमाने लावत आहे. निर्णय नियम घेतात, AI नाही…",
         "r_rule": "नियम {rule}: {action}.", "r_gate_ok": "सुरक्षित पुनर्भरणा तपासणी: प्रत्येक अट पूर्ण झाली.",
         "r_no_retry": "आत्ता पुन्हा पाठवणे सुरक्षित नाही.",
         "r_deadline": "बँकेने {date} पर्यंत पैसे परत करायला हवेत (RBI T+{days}).",
-        "s_refetch": "NPCI, तुमची बँक आणि {payee} कडून आत्ता पुन्हा माहिती घेत आहे…",
-        "s_same": "निर्णयानंतर काहीही बदलले नाही. तुम्हाला सांगणे सुरक्षित आहे.",
-        "s_changed": "काहीतरी बदलले ({sources}), म्हणून नव्या माहितीवर निर्णय पुन्हा घेतला.",
-        "s_money": "या तपासणीशिवाय कोणतेही पैसे हलत नाहीत.",
         "f_deadline": "मी मुदतीवर लक्ष ठेवत आहे: {date}.",
         "f_auto": "तोपर्यंत पैसे परत आले नाहीत, तर मी स्वतः तक्रार नोंदवेन आणि दररोज {per_day} रुपये भरपाई मागेन.",
         "f_disputed": "तक्रार {ref} नोंदवली आहे. प्रकरण मिटेपर्यंत मी दररोज पाठपुरावा करेन.",
@@ -130,7 +103,6 @@ T = {
         "f_nothing_taken": "पाठपुरावा करण्यासारखे काही नाही: पैसे कापले गेले नाहीत.",
         "f_done": "आता पाठपुरावा करण्यासारखे काही उरले नाही.",
         "f_human": "एका तज्ञाकडे प्रकरणाची संपूर्ण फाइल आहे, ते याच चॅटमध्ये उत्तर देतील.",
-        "v_ok": "पडताळले", "v_changed": "ताजे केले",
     },
 }
 
@@ -190,7 +162,7 @@ def _agent(key: str, lang: str, lines: list[str], tone: str, verdict: str) -> di
 
 def intro_text(txn: Transaction, lang: str) -> str:
     key = "intro_PENDING" if txn.status == "PENDING" else "intro_FAILED"
-    return T[lang][key].format(amount=inr(txn.amount_paise), payee=txn.payee_name)
+    return T[lang][key].format(amount=inr(txn.amount_paise), payee=local_name(txn.payee_name, lang))
 
 
 def conclusion_text(db: Session, case: Case, lang: str) -> str:
@@ -202,23 +174,16 @@ def build(db: Session, settings: Settings, case: Case, txn: Transaction, lang: s
     t = T[lang]
     ev = json.loads(case.evidence_json or "{}")
     n, led, m = ev.get("npci", {}), ev.get("ledger", {}), ev.get("merchant", {})
-    amount, payee = inr(txn.amount_paise), txn.payee_name
+    amount, payee = inr(txn.amount_paise), local_name(txn.payee_name, lang)
     agents = []
 
-    # Network agent: NPCI
-    lines = [t["n_ask"].format(ref=txn.upi_ref)]
+    # Bank agent: where the money is (NPCI status, the bank ledger, the merchant's credit)
+    lines = [t["b_check"].format(payee=payee)]
     if n.get("available", True) and n.get("status"):
         lines.append(t["n_status"].format(status=NPCI_STATUS[lang].get(n["status"], n["status"]),
                                           final=t["final"] if n.get("final") else ""))
-        if n.get("reason_code"):
-            lines.append(t["n_reason"].format(code=n["reason_code"]))
-        agents.append(_agent("network", lang, lines, "bad" if n["status"] == "FAILED" else "warn"
-                             if n["status"] == "PENDING" else "ok", NPCI_STATUS[lang].get(n["status"], n["status"])))
     else:
-        agents.append(_agent("network", lang, lines + [t["n_down"]], "warn", "—"))
-
-    # Bank agent: ledger + merchant credit
-    lines = [t["b_ask"]]
+        lines.append(t["n_down"])
     state = led.get("state") if led.get("available", True) else None
     if state == "DEBITED":
         lines.append((t["b_twice"] if (led.get("debit_count") or 1) >= 2 else t["b_debited"]).format(amount=amount))
@@ -228,7 +193,6 @@ def build(db: Session, settings: Settings, case: Case, txn: Transaction, lang: s
         lines.append(t["b_none"])
     else:
         lines.append(t["b_down"])
-    lines.append(t["m_ask"].format(payee=payee))
     if not m.get("available", True):
         lines.append(t["m_down"].format(payee=payee))
     else:
@@ -236,10 +200,10 @@ def build(db: Session, settings: Settings, case: Case, txn: Transaction, lang: s
     bank_tone = "bad" if state == "DEBITED" and not m.get("credited") else "ok" if state in ("NO_DEBIT", "REVERSED") else "warn"
     agents.append(_agent("bank", lang, lines, bank_tone, LEDGER_SHORT[lang].get(state, LEDGER_SHORT[lang][None])))
 
-    # Diagnosis agent
+    # Rules agent: diagnosis, the decision rule, retry safety, deadline, and the live re-check
     diag = _latest(db, case.id, "DIAGNOSED") or {}
     llm = _latest(db, case.id, "LLM_CLASSIFIED")
-    lines = [t["d_match"]]
+    lines = []
     conflicts = json.loads(case.conflicts_json or "[]")
     sus = [c["code"] for c in conflicts if c["code"].startswith(("CLAIM_", "REPEAT_"))]
     conf = [c["code"] for c in conflicts if c["code"] not in sus]
@@ -250,13 +214,9 @@ def build(db: Session, settings: Settings, case: Case, txn: Transaction, lang: s
     if llm and llm.get("result"):
         lines.append(t["d_llm"].format(conf=f"{llm['result'].get('confidence', 0):.2f}"))
     code = str(case.class_ or diag.get("case_class") or "AMBIGUOUS").split("_")[0]
-    label = CLASS_LABEL[lang].get(code, code)
-    lines.append(t["d_result"].format(label=label, code=code))
-    agents.append(_agent("diagnosis", lang, lines, "bad" if code in ("F9", "F10") else "ok", code))
-
-    # Rules agent
+    lines.append(t["d_result"].format(label=CLASS_LABEL[lang].get(code, code), code=code))
     action = case.decision or "ESCALATE"
-    lines = [t["r_apply"], t["r_rule"].format(rule=case.rule_id or "8", action=ACTION_LABEL[lang].get(action, action))]
+    lines.append(t["r_rule"].format(rule=case.rule_id or "8", action=ACTION_LABEL[lang].get(action, action)))
     if action == "OFFER_RETRY":
         lines.append(t["r_gate_ok"])
     elif state != "NO_DEBIT" or n.get("status") != "FAILED" or not n.get("final"):
@@ -265,18 +225,13 @@ def build(db: Session, settings: Settings, case: Case, txn: Transaction, lang: s
     if sit == "DEBIT_WAIT" and case.deadline_ts:
         lines.append(t["r_deadline"].format(date=day_month(case.deadline_ts, lang),
                                             days=settings.SLA_BENEFICIARY_CREDIT_FAILURE_DAYS))
-    agents.append(_agent("rules", lang, lines, "bad" if action == "ESCALATE" else "ok",
-                         ACTION_LABEL[lang].get(action, action)))
-
-    # Safety agent: the live re-fetch done while this chat opened
-    lines = [t["s_refetch"].format(payee=payee)]
     if changed_sources:
-        lines.append(t["s_changed"].format(sources=", ".join(SOURCE_LABEL[lang].get(s, s) for s in changed_sources)))
+        lines.append(t["s_live_changed"].format(
+            sources=", ".join(SOURCE_LABEL[lang].get(src, src) for src in changed_sources)))
     else:
-        lines.append(t["s_same"])
-    lines.append(t["s_money"])
-    agents.append(_agent("safety", lang, lines, "warn" if changed_sources else "ok",
-                         t["v_changed"] if changed_sources else t["v_ok"]))
+        lines.append(t["s_live_same"])
+    agents.append(_agent("rules", lang, lines, "bad" if action == "ESCALATE" else "warn" if changed_sources else "ok",
+                         ACTION_LABEL[lang].get(action, action)))
 
     # Follow-up agent
     facts = case_facts(db, case)

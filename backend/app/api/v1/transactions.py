@@ -16,7 +16,9 @@ from app.api.v1.views import case_view, txn_view
 from app.config import Settings
 from app.conversation.turn import resolve_after_retry_payment
 from app.deps import get_app_settings, get_db
+from app.conversation.names import local_name
 from app.engine import audit
+from app.i18n import label_lang
 from app.engine.pipeline import process_transaction
 from app.engine.retry_gate import VPA_RE
 from app.mock.router import InjectIn, LedgerPatch, MerchantPatch, NpciPatch, apply_injection
@@ -158,7 +160,8 @@ def scan_qr(user: User = Depends(current_user), db: Session = Depends(get_db),
         raise HTTPException(404, "scanning is mocked only in demo mode")
     n = db.query(Transaction).filter(Transaction.payer_user_id == user.id, Transaction.category == "Scan & Pay").count()
     name, vpa = DEMO_QR_MERCHANTS[n % len(DEMO_QR_MERCHANTS)]
-    return {"payee_name": name, "payee_vpa": vpa}
+    # payee_name is what gets paid and stored; payee_display is for the screen (UI language)
+    return {"payee_name": name, "payee_vpa": vpa, "payee_display": local_name(name, label_lang())}
 
 
 @router.post("/payments", status_code=201)

@@ -24,7 +24,7 @@ def test_dates_per_language():
 
 def test_s2_hindi_answer_matches_spec():
     text = T.status_text("DEBIT_WAIT", FACTS, "hi")
-    assert text == ("हाँ, आपके खाते से 1,499 रुपये कटे हैं, लेकिन City Mobiles को नहीं पहुंचे। "
+    assert text == ("हाँ, आपके खाते से 1,499 रुपये कटे हैं, लेकिन सिटी मोबाइल्स को नहीं पहुंचे। "
                     "दोबारा पेमेंट मत कीजिए। यह पैसा 4 अक्टूबर तक अपने आप वापस आना चाहिए।")
 
 

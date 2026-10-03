@@ -9,7 +9,10 @@ Voice-first AI support teammate inside Paytm. It resolves failed or pending UPI 
 2. **SQLite, not Postgres. A jobs table, not Redis.** Do not set up Postgres or Redis.
 3. **The agent speaks first when a payment fails in front of the user** (mentor feedback, 3 Oct 2026). This replaces "speaks only after the user taps" (spec 1.0, 6.10) for that moment only.
    - Flow: Scan & Pay fails (on purpose in the demo, `DEMO_SCAN_PAY_FAILURE`), then the chat opens: "Your payment failed. I'm running a detailed investigation."
-   - Six agents then appear one at a time, each showing its thinking: Network (NPCI), Bank (ledger + merchant credit), Diagnosis (F1-F10), Rules (decision), Safety (live re-check), Follow-up (deadline / dispute).
+   - Three agents then appear one at a time, each showing its thinking:
+     - Bank: NPCI status, ledger, merchant credit.
+     - Rules: diagnosis F1-F10, the decision rule, retry safety, deadline, live re-check.
+     - Follow-up: deadline / dispute.
    - Then the spoken conclusion, then the normal hands-free follow-up.
    - Every agent line comes from real records (`app/conversation/investigation.py`). Never invent agent output.
    - The mic button on failed payments stays.
@@ -17,6 +20,7 @@ Voice-first AI support teammate inside Paytm. It resolves failed or pending UPI 
    - The app has an EN / हिं / मरा toggle in every header. It sends `X-UI-Lang`, and screens, status lines, the investigation and replies to typed text follow it.
    - A voice turn whose spoken language Sarvam identifies with at least `SPOKEN_LANG_MIN_PROBABILITY` (0.8) is answered in that spoken language. Switching to Marathi mid-chat gets Marathi; the toggle does not change.
    - Without the header, replies follow the detected language.
+   - Payee names are shown in Devanagari for hi / mr (`app/conversation/names.py`). This is a reviewed word dictionary, not the LLM. Any unknown word keeps the original name. Payments and records always keep the original.
 
 ## Repo layout
 ```

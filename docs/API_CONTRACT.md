@@ -320,6 +320,7 @@ This returns `201 {"transaction": {...status "SUCCESS"...}, "case": {... "state"
 The app sends `X-UI-Lang: en | hi | mr` on every `/v1` call. With it:
 - **Replies:** `/v1/voice/turn` answers in that language. One exception: a voice turn whose spoken language Sarvam identifies with at least `SPOKEN_LANG_MIN_PROBABILITY` (default 0.8) is answered in the spoken language (e.g. Marathi speech with an English UI gets Marathi).
 - **Labels:** `statusLine`, `next_action`/`nextAction` and `failureReason` come back in that language.
+- **Payee names:** `payeeName` and the case card's `payeeName` come back in Devanagari for `hi` / `mr` (an unknown word keeps the original). `/v1/scan` adds `payee_display`, and a retry's `OPEN_PAY_SCREEN` payload adds `payee_display`. Pay with `payee_name`, never the display name.
 
 Without the header, replies follow the detected language and labels stay English.
 
@@ -333,13 +334,12 @@ Without the header, replies follow the detected language and labels stay English
 
 The `investigation` object:
 - `intro`: *"Your ₹640 payment to Kaveri Restaurant failed. I'm running a detailed investigation."* It has `audio_url`, and its `actions[0]` is `{"type": "INVESTIGATION", "agents": [...]}`.
-- `agents`: six of them, `network, bank, diagnosis, rules, safety, followup`, each `{id, name, lines: [...], tone: ok|warn|bad, verdict}`.
+- `agents`: three of them, `bank, rules, followup`, each `{id, name, lines: [...], tone: ok|warn|bad, verdict}`.
 - `conclusion`: *"Investigation complete. Yes, ₹640 was taken…"*. It has `audio_url` and the normal `chips` for the situation.
 
 What the agents' lines are built from:
-- **Network and Bank:** the evidence the decision used.
-- **Diagnosis and Rules:** the `DIAGNOSED`, `LLM_CLASSIFIED` and `DECIDED` events.
-- **Safety:** the live re-fetch done during this open. If a source changed, it names it and the decision is redone.
+- **Bank:** the evidence the decision used (NPCI, ledger, merchant).
+- **Rules:** the `DIAGNOSED`, `LLM_CLASSIFIED` and `DECIDED` events, plus the live re-fetch done during this open. If a source changed, it names it and the decision is redone.
 - **Follow-up:** the deadline, the queued job, or the dispute.
 
 Follow-up questions are ordinary turns.

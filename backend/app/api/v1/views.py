@@ -4,6 +4,7 @@ import json
 from sqlalchemy.orm import Session
 
 from app import clock
+from app.conversation.names import local_name
 from app.i18n import label_lang
 from app.conversation import templates
 from app.conversation.facts import case_facts, case_situation
@@ -24,7 +25,7 @@ def txn_view(db: Session, t: Transaction, case: Case | None = None) -> dict:
     if case is None:
         case = db.query(Case).filter(Case.txn_id == t.id).one_or_none()
     return {
-        "id": t.id, "payeeName": t.payee_name, "payeeVpa": t.payee_vpa, "amountPaise": t.amount_paise,
+        "id": t.id, "payeeName": local_name(t.payee_name, label_lang()), "payeeVpa": t.payee_vpa, "amountPaise": t.amount_paise,
         "status": t.status, "debited": t.debited, "timestamp": clock.iso_ist(t.initiated_at), "note": t.note,
         "direction": t.direction, "category": t.category, "railLabel": t.rail_label, "upiRef": t.upi_ref,
         "failureReason": templates.failure_reason(t.failure_code, t.status, t.failure_reason, label_lang()),
@@ -52,7 +53,7 @@ def case_view(db: Session, case: Case) -> dict:
         "compensation": {"amount_paise": comp.amount_paise, "days_late": comp.days_late,
                          "status": comp.status} if comp else None,
         "conflicts": json.loads(case.conflicts_json or "[]"),
-        "card": {"payeeName": txn.payee_name, "payeeVpa": txn.payee_vpa, "amountPaise": txn.amount_paise,
+        "card": {"payeeName": local_name(txn.payee_name, lang), "payeeVpa": txn.payee_vpa, "amountPaise": txn.amount_paise,
                  "status": txn.status, "timestamp": clock.iso_ist(txn.initiated_at),
                  "statusLine": templates.status_line(sit, facts, lang) if sit else None,
                  "nextAction": templates.next_action(sit, lang) if sit else None,

@@ -23,12 +23,12 @@ A phone-width web app for the AI Resolve feature. Plain HTML, CSS and JS: no fra
 | `#/agent/:txnId` | AI Resolve chat bound to that payment: pinned case card, bubbles, chips, mic (voice-first) and a text fallback, spoken replies, speaker mute |
 | `#/pay/:caseId` | Pre-filled retry + mock PIN. Opens only from the backend's `OPEN_PAY_SCREEN` action |
 | `#/scan` | **Scan & Pay** (Home tile): a mock viewfinder; the backend "decodes" a demo merchant QR |
-| `#/send` | Amount → mock PIN → result. In the demo the payment **fails on purpose** (backend `DEMO_SCAN_PAY_FAILURE`). The failure shows for a moment, then the chat opens with the **investigation**: the spoken intro; six agents appearing one by one, each "thinking" (`InvestigationPanel`, timings `VOICE.agentThinkMs` / `agentLineMs`); the spoken conclusion; then hands-free listening. |
+| `#/send` | Amount → mock PIN → result. In the demo the payment **fails on purpose** (backend `DEMO_SCAN_PAY_FAILURE`). The failure shows for a moment, then the chat opens with the **investigation**: the spoken intro; three agents (Bank, Rules, Follow-up) appearing one by one, each "thinking" (`InvestigationPanel`, timings `VOICE.agentThinkMs` / `agentLineMs`); the spoken conclusion; then hands-free listening. |
 
 ## Language
 - **Toggle:** every header has an **EN / हिं / मरा** toggle (`LangToggle`).
 - **Where the text lives:** all UI text is in `I18N` in `data.js`, read with `t(key, vars)`. Dates and status labels follow the language.
-- **What the backend does with it:** the language is sent as `X-UI-Lang`. The agent answers in it, except that when the user clearly speaks another language, that voice reply follows the spoken language. Status lines and failure reasons come back in it too.
+- **What the backend does with it:** the language is sent as `X-UI-Lang`. The agent answers in it, except that when the user clearly speaks another language, that voice reply follows the spoken language. Status lines, failure reasons and payee names (Devanagari) come back in it too. Screens show `payee_display` where the API gives one; payments always use `payee_name`.
 - **Storage:** the choice is kept in `localStorage`.
 - Hindi and Marathi text needs a native speaker's review.
 

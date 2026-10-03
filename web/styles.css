@@ -54,11 +54,8 @@
   --mic-size: 68px;
 
   /* investigation agents (chat) */
-  --color-agent-network: #0086c9;
   --color-agent-bank: #039855;
-  --color-agent-diagnosis: #6941c6;
   --color-agent-rules: #002970;
-  --color-agent-safety: #b54708;
   --color-agent-followup: #c11574;
   --color-inv-bg: #f8fbff;
 
@@ -399,11 +396,8 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
   border-radius: var(--radius-pill); color: #fff; background: var(--agent);
 }
-.agent--network .agent__avatar { --agent: var(--color-agent-network); }
 .agent--bank .agent__avatar { --agent: var(--color-agent-bank); }
-.agent--diagnosis .agent__avatar { --agent: var(--color-agent-diagnosis); }
 .agent--rules .agent__avatar { --agent: var(--color-agent-rules); }
-.agent--safety .agent__avatar { --agent: var(--color-agent-safety); }
 .agent--followup .agent__avatar { --agent: var(--color-agent-followup); }
 .agent--active .agent__avatar { box-shadow: 0 0 0 3px var(--color-brand-sky-soft), 0 0 0 5px var(--agent); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 3px var(--color-brand-sky-soft), 0 0 0 8px transparent; } }

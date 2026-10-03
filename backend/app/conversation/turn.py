@@ -14,6 +14,7 @@ from app.config import Settings
 from app import providers
 from app.conversation import llm_tasks, templates
 from app.conversation.facts import case_facts, case_situation
+from app.conversation.names import local_name
 from app.conversation.intents import detect_intent_ex, detect_language, extract_amount_paise, redact
 from app.providers.sarvam import STTResult
 from app.domain import Claim
@@ -132,7 +133,9 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
         sit, facts = case_situation(case), case_facts(db, case)
         if res.ok:
             reply = templates.retry_text("CONFIRMED", facts, lang)
-            actions = [{"type": "OPEN_PAY_SCREEN", "payload": res.payload}]
+            # payee_display is for the screen only; the payment itself uses the record's payee_name
+            actions = [{"type": "OPEN_PAY_SCREEN",
+                        "payload": {**res.payload, "payee_display": local_name(res.payload["payee_name"], lang)}}]
         elif res.recheck_changed:
             reply = templates.retry_text("BLOCKED", facts, lang) + " " + templates.status_text(sit, facts, lang)
         else:

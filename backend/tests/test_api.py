@@ -81,7 +81,7 @@ def test_s2_hinglish_then_deadline_dispute(api):
     expected_by = o["case"]["expected_by"]
     r = say(api, cid, "paise kat gaye par mila nahi")
     assert r["lang"] == "hi" and r["decision"] == "WAIT" and r["situation"] == "DEBIT_WAIT"
-    assert r["speak"]["text"].startswith("हाँ, आपके खाते से 1,499 रुपये कटे हैं, लेकिन City Mobiles को नहीं पहुंचे।")
+    assert r["speak"]["text"].startswith("हाँ, आपके खाते से 1,499 रुपये कटे हैं, लेकिन सिटी मोबाइल्स को नहीं पहुंचे।")
     assert "दोबारा पेमेंट मत कीजिए" in r["speak"]["text"]
     assert r["speak"]["facts"]["expected_by"] == expected_by
     assert {c["id"] for c in r["chips"]} == {"what_if", "why", "talk_to_human"}
@@ -188,8 +188,8 @@ def test_end_conversation_flag_for_hands_free_mode(api):
 @pytest.mark.parametrize("text,lang,start", [
     ("Can you give me the code for palindrome?", "en",
      "Please stay relevant to this transaction. I can only help with your ₹350 payment to Sharma Medicals"),
-    ("aaj mausam kaisa hai bhai", "hi", "कृपया इसी लेन-देन से जुड़ी बात पूछिए। मैं सिर्फ़ Sharma Medicals को किए गए आपके 350 रुपये"),
-    ("मला एक विनोद सांगा", "mr", "कृपया याच व्यवहाराशी संबंधित विचारा. मी फक्त Sharma Medicals ला केलेल्या तुमच्या 350 रुपयांच्या"),
+    ("aaj mausam kaisa hai bhai", "hi", "कृपया इसी लेन-देन से जुड़ी बात पूछिए। मैं सिर्फ़ शर्मा मेडिकल्स को किए गए आपके 350 रुपये"),
+    ("मला एक विनोद सांगा", "mr", "कृपया याच व्यवहाराशी संबंधित विचारा. मी फक्त शर्मा मेडिकल्स ला केलेल्या तुमच्या 350 रुपयांच्या"),
 ])
 def test_off_topic_is_redirected_in_the_users_language(api, text, lang, start):
     cid = open_case(api, "txn_s1_sharma")["case"]["id"]
@@ -295,32 +295,34 @@ def test_scan_pay_fails_on_purpose_and_case_is_prepared(api):
     assert (out["case"]["class"], out["case"]["decision"]) == ("F4_DEBIT_NO_CREDIT", "WAIT")
 
 
-def test_failed_payment_opens_with_six_agent_investigation_in_ui_language(api):
+def test_failed_payment_opens_with_three_agent_investigation_in_ui_language(api):
     txn = scan_and_pay(api, 64000)["transaction"]
     r = api.post("/v1/cases/open", json={"txn_id": txn["id"], "investigate": True},
                  headers={"X-UI-Lang": "hi"}).json()
     inv = r["investigation"]
-    assert [a["id"] for a in inv["agents"]] == ["network", "bank", "diagnosis", "rules", "safety", "followup"]
-    assert inv["intro"]["text"].startswith("Kaveri Restaurant को आपका 640 रुपये का पेमेंट असफल रहा")
-    bank = next(a for a in inv["agents"] if a["id"] == "bank")
-    assert "640 रुपये कटे" in " ".join(bank["lines"]) and bank["name"] == "बैंक एजेंट"
-    assert any("F4" in line for line in next(a for a in inv["agents"] if a["id"] == "diagnosis")["lines"])
+    assert [a["id"] for a in inv["agents"]] == ["bank", "rules", "followup"]
+    assert inv["intro"]["text"].startswith("कावेरी रेस्टोरेंट को आपका 640 रुपये का पेमेंट असफल रहा")
+    bank = " ".join(next(a for a in inv["agents"] if a["id"] == "bank")["lines"])
+    assert "NPCI के अनुसार: असफल" in bank and "640 रुपये कटे" in bank and "कावेरी रेस्टोरेंट को पैसा नहीं मिला" in bank
+    rules = " ".join(next(a for a in inv["agents"] if a["id"] == "rules")["lines"])
+    assert "(F4)" in rules and "नियम 5" in rules and "कुछ नहीं बदला" in rules  # diagnosis, rule, live re-check
     assert inv["conclusion"]["text"].startswith("जाँच पूरी हुई। हाँ, आपके खाते से 640 रुपये कटे")
     assert [c["id"] for c in inv["conclusion"]["chips"]] == ["what_if", "why", "talk_to_human"]
     # labels follow the UI language too
     assert r["case"]["card"]["statusLine"].startswith("पैसा") and r["transaction"]["failureReason"].startswith("पैसा कटा")
+    assert r["transaction"]["payeeName"] == r["case"]["card"]["payeeName"] == "कावेरी रेस्टोरेंट"
     # once per case; the chat history keeps both messages, the intro carrying the agents
     again = api.post("/v1/cases/open", json={"txn_id": txn["id"], "investigate": True}).json()
     assert again["investigation"] is None and len(again["messages"]) == 2
     assert again["messages"][0]["actions"][0]["type"] == "INVESTIGATION"
 
 
-def test_investigation_safety_agent_reports_a_live_change(api):
+def test_investigation_reports_a_live_change(api):
     txn = scan_and_pay(api)["transaction"]
     api.post("/mock/inject", json={"txn_id": txn["id"], "ledger": {"state": "REVERSED"}})
     inv = api.post("/v1/cases/open", json={"txn_id": txn["id"], "investigate": True}).json()["investigation"]
-    safety = next(a for a in inv["agents"] if a["id"] == "safety")
-    assert safety["tone"] == "warn" and "bank" in " ".join(safety["lines"])
+    rules = next(a for a in inv["agents"] if a["id"] == "rules")
+    assert rules["tone"] == "warn" and "bank changed" in " ".join(rules["lines"])
     assert "came back" in inv["conclusion"]["text"]
 
 
@@ -346,3 +348,20 @@ def test_scan_pay_can_be_switched_off(client):
     qr = client.post("/v1/scan", headers=h).json()
     r = client.post("/v1/payments", json={**qr, "amount_paise": 5000, "pin": "1234", "origin": "scan"}, headers=h)
     assert r.json()["transaction"]["status"] == "SUCCESS"
+
+
+def test_payee_names_follow_the_ui_language(api):
+    hi = {"X-UI-Lang": "hi"}
+    txns = {t["id"]: t for t in api.get("/v1/transactions", headers=hi).json()["transactions"]}
+    assert txns["txn_s1_sharma"]["payeeName"] == "शर्मा मेडिकल्स"
+    assert api.get("/v1/transactions/txn_s2_citymobiles", headers={"X-UI-Lang": "mr"}).json()["payeeName"] == "सिटी मोबाईल्स"
+    assert api.get("/v1/transactions/txn_s2_citymobiles").json()["payeeName"] == "City Mobiles"  # English UI
+    qr = api.post("/v1/scan", headers=hi).json()
+    assert qr["payee_name"] == "Kaveri Restaurant" and qr["payee_display"] == "कावेरी रेस्टोरेंट"
+
+
+def test_unknown_payee_words_keep_the_original_name():
+    from app.conversation.names import local_name
+    assert local_name("Kaveri Restaurant", "mr") == "कावेरी रेस्टॉरंट"
+    assert local_name("Zorba Foods", "hi") == "Zorba Foods"  # never half-translated or guessed
+    assert local_name("Kaveri Restaurant", "en") == "Kaveri Restaurant"

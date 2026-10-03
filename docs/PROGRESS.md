@@ -75,6 +75,10 @@
     - `late_debit` makes the S1 "yes" hit the live re-check.
   - Both have API tests and console buttons.
 
+- **Three agents instead of six, and payee names in the UI language** (owner request, 2026-10-03).
+  - **Agents:** Bank (NPCI + ledger + merchant), Rules (diagnosis, rule, retry safety, deadline, live re-check) and Follow-up. The removed agents' content is folded in, not dropped.
+  - **Payee names:** in Devanagari for hi / mr via a reviewed word dictionary (`app/conversation/names.py`, not the LLM). An unknown word keeps the original name. This applies to lists, the case card, replies, agents, the scan screen and the retry pay screen (`payee_display`). Payments keep `payee_name`.
+  - **Checked in Chrome with the Marathi UI.** Tests: 227 pass.
 - **Spoken language wins over the UI language for voice replies** (owner choice, 2026-10-03, after Marathi mid-chat got an English answer on the phone).
   - What happened: Sarvam had identified `mr-IN` with probability 1.0, but the EN toggle won.
   - Now a voice turn with language-ID probability ≥ `SPOKEN_LANG_MIN_PROBABILITY` (0.8) is answered in the spoken language; otherwise the UI language applies.

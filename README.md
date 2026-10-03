@@ -37,7 +37,7 @@ copy .env.example .env            # then add your keys (see "Configuration")
 .venv\Scripts\python -m uvicorn app.main:app --port 8000
 ```
 
-Open **http://localhost:8000**. Tap **Scan & Pay**, enter an amount and any PIN. The payment fails on purpose (demo). The AI agent opens, six agents investigate in front of you, and it tells you what happened. The **EN / हिं / मरा** toggle in the header sets the app's language, and the agent answers in it. Or tap **City Mobiles ₹1,499 → mic**, and say or type `paise kat gaye par mila nahi`. On Home, **Skip time +1 day** (twice) moves the mock clock past the deadline to show the automatic dispute.
+Open **http://localhost:8000**. Tap **Scan & Pay**, enter an amount and any PIN. The payment fails on purpose (demo). The AI agent opens, three agents investigate in front of you, and it tells you what happened. The **EN / हिं / मरा** toggle in the header sets the app's language, and the agent answers in it. Or tap **City Mobiles ₹1,499 → mic**, and say or type `paise kat gaye par mila nahi`. On Home, **Skip time +1 day** (twice) moves the mock clock past the deadline to show the automatic dispute.
 
 **On your Android phone:** the Expo app in [`mobile/`](mobile/README.md) shows the same app full screen. Run the backend, open an HTTPS tunnel with `mobile\tunnel.ps1`, run `npx expo start` in `mobile/`, and scan the QR code with Expo Go.
 

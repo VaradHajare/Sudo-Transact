@@ -41,10 +41,7 @@
     bank: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 10l9-6 9 6M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18"/></svg>',
     spark: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9z"/><path d="M19 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>',
     tick: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>',
-    network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16.1a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="1"/></svg>',
-    diagnosis: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg>',
     rules: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z"/></svg>',
-    safety: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>',
     followup: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>',
     wallet: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M16 13h2M2 10h20"/></svg>',
   };
@@ -197,8 +194,7 @@
     return `<div class="state state--error">${esc(message)}<br><button class="btn-link" data-action="reload">${esc(t("tryAgain"))}</button></div>`;
   }
 
-  const AGENT_ICON = { network: Icon.network, bank: Icon.bank, diagnosis: Icon.diagnosis, rules: Icon.rules,
-    safety: Icon.safety, followup: Icon.followup };
+  const AGENT_ICON = { bank: Icon.bank, rules: Icon.rules, followup: Icon.followup };
 
   /** InvestigationPanel: the agents' work right after a payment fails, Grok-style. The lines come
    *  from the backend (real evidence, rules and re-check, in the UI language).
@@ -699,8 +695,8 @@
         ${header}
         <div class="screen__body">
           <div class="card txn-hero">
-            <span class="avatar" style="margin:0 auto var(--space-3)">${initials(payload.payee_name)}</span>
-            <p class="txn-hero__headline">${esc(payload.payee_name)}</p>
+            <span class="avatar" style="margin:0 auto var(--space-3)">${initials(payload.payee_display || payload.payee_name)}</span>
+            <p class="txn-hero__headline">${esc(payload.payee_display || payload.payee_name)}</p>
             <p class="txn-hero__payee">${esc(payload.payee_vpa)}</p>
             <div class="txn-hero__amount">${esc(formatPaise(payload.amount_paise))}</div>
             <p class="muted">${esc(payload.note || "")}</p>
@@ -795,14 +791,15 @@
     const qr = PendingScan.get();
     const header = AppHeader({ title: esc(t("pay")), subtitle: t("scannedQr"), back: true });
     if (!qr) { location.replace("#/scan"); return; }
+    const shownName = qr.payee_display || qr.payee_name; // display only; the payment uses payee_name
     const step = { name: "amount", paise: 0, note: "" };
 
     function paint(error) {
       if (!isCurrent()) return;
       const payee = `
         <div class="card payee-card">
-          <span class="avatar">${initials(qr.payee_name)}</span>
-          <div><div class="payee-card__name">${esc(qr.payee_name)}</div><div class="muted">${esc(qr.payee_vpa)} · ${esc(t("fromQr"))}</div></div>
+          <span class="avatar">${initials(shownName)}</span>
+          <div><div class="payee-card__name">${esc(shownName)}</div><div class="muted">${esc(qr.payee_vpa)} · ${esc(t("fromQr"))}</div></div>
         </div>`;
       const body = step.name === "amount" ? `
         <form class="card" data-form="amount" autocomplete="off">
@@ -813,7 +810,7 @@
           <button class="btn" type="submit">${esc(t("proceed"))}</button>
         </form>` : `
         <form class="card" data-form="pin" autocomplete="off">
-          <p class="muted center">${esc(t("payingTo", { amount: formatPaise(step.paise), payee: qr.payee_name }))}</p>
+          <p class="muted center">${esc(t("payingTo", { amount: formatPaise(step.paise), payee: shownName }))}</p>
           <label class="muted" for="pin">${esc(t("enterPin"))}</label>
           <input id="pin" class="pin-input" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required>
           <div class="error-line" data-error>${esc(error || "")}</div>
@@ -840,7 +837,7 @@
       }
       const pin = form.elements.pin.value;
       if (!/^\d{4,6}$/.test(pin)) return paint(t("pinDigits"));
-      $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: t("paying", { amount: formatPaise(step.paise), payee: qr.payee_name }) })}</div></div>`;
+      $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: t("paying", { amount: formatPaise(step.paise), payee: shownName }) })}</div></div>`;
       let res;
       try {
         [res] = await Promise.all([
