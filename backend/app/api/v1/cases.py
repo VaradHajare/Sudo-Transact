@@ -1,5 +1,6 @@
 """Cases: open (mic tap), briefing, voice turns, reply audio, chat history, retry confirm, manual dispute."""
 import hashlib
+import json
 import re
 import secrets
 from pathlib import Path
@@ -10,12 +11,13 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
-from app import clock, providers
+from app import clock, i18n, providers
 from app.providers.sarvam import ProviderError
 from app.api.v1.auth import current_user
 from app.api.v1.idempotency import run_idempotent
 from app.api.v1.views import activity_view, case_view, message_view, messages_view, txn_view
 from app.config import Settings
+from app.conversation.facts import case_situation
 from app.conversation.turn import TurnResult, briefing_items, handle_turn
 from app.deps import get_app_settings, get_db
 from app.engine import audit
@@ -35,9 +37,9 @@ def own_case(db: Session, user: User, case_id: str) -> Case:
 # ------------------------------------------------------------------ open (user tapped the mic on a payment)
 class OpenIn(BaseModel):
     txn_id: str
-    # The payment just failed in front of the user: the agent speaks first and offers help
-    # (team decision after mentor feedback; replaces "speaks only after a tap" for this moment).
-    offer_help: bool = False
+    # The payment just failed in front of the user (team decision 3): the chat opens with the
+    # agent's detailed investigation (six agents) and its conclusion, in the UI language.
+    investigate: bool = False
     lang: str | None = None
 
 
@@ -50,12 +52,14 @@ def open_case(body: OpenIn, user: User = Depends(current_user), db: Session = De
         raise HTTPException(404, "transaction not found")
     if txn.direction != "OUT":
         raise HTTPException(422, "only outgoing payments can be opened as a case")
-    existed = db.query(Case).filter(Case.txn_id == txn.id).count() > 0
-    case = process_transaction(db, settings, txn.id, "USER_OPEN").case
-    offer = None
-    if body.offer_help and txn.status in ("FAILED", "PENDING") and not db.query(Message).filter(
-            Message.case_id == case.id).count():
-        offer = _offer_help(db, settings, case, txn, body.lang)
+    prior = db.query(Case).filter(Case.txn_id == txn.id).one_or_none()
+    existed = prior is not None
+    evidence_before = json.loads(prior.evidence_json or "{}") if prior else {}
+    investigate = body.investigate and txn.status in ("FAILED", "PENDING") and not (
+        prior and db.query(Message).filter(Message.case_id == prior.id).count())
+    # live re-fetch + re-decide (the investigation's conclusion replaces any update message)
+    case = process_transaction(db, settings, txn.id, "USER_INVESTIGATE" if investigate else "USER_OPEN").case
+    investigation = _investigate(db, settings, case, txn, body.lang, evidence_before) if investigate else None
     briefing = briefing_items(db, user.id, case.id, case.language)
     had_update = case.has_unseen_update
     case.has_unseen_update = False  # the user is looking at it now
@@ -64,28 +68,39 @@ def open_case(body: OpenIn, user: User = Depends(current_user), db: Session = De
     db.commit()
     return {"case": case_view(db, case), "transaction": txn_view(db, txn, case),
             "messages": messages_view(db, case.id), "briefing": briefing, "prepared_in_background": existed,
-            "offer": message_view(offer) if offer else None}
+            "investigation": investigation}
 
 
-def _offer_help(db: Session, settings: Settings, case: Case, txn: Transaction, lang: str | None) -> Message:
-    """The agent's first words, once per case: what failed and an offer to check. Facts only from the
-    Paytm record; the diagnosis is given when the user answers (rules decide, as for any turn)."""
+def _investigate(db: Session, settings: Settings, case: Case, txn: Transaction, lang: str | None,
+                 evidence_before: dict) -> dict:
+    """Two agent messages, once per case: the intro ("…failed. I'm running a detailed investigation")
+    carrying the six agents' steps, then the conclusion (the normal status answer) with its chips."""
+    from app.conversation import investigation, templates
     from app.conversation.facts import case_facts
-    from app.conversation.templates import LANGS, offer_chips, offer_text
-    from app.conversation.turn import OFFER_INTENT, speak_facts
+    from app.conversation.turn import speak_facts
     from app.engine.actions import add_agent_message
 
-    if lang in LANGS:
-        case.language = lang
+    lang = i18n.ui_lang() or (lang if lang in templates.LANGS else case.language)
+    case.language = lang
+    evidence_now = json.loads(case.evidence_json or "{}")
+    changed = [src for key, src in (("npci", "NPCI"), ("ledger", "BANK_LEDGER"), ("merchant", "MERCHANT"))
+               if evidence_before and evidence_before.get(key) != evidence_now.get(key)]
+    agents = investigation.build(db, settings, case, txn, lang, changed)
     facts = case_facts(db, case)
     now = clock.now(db)
-    msg = add_agent_message(db, case, offer_text(txn.status, facts, case.language), now,
-                            chips=offer_chips(facts, case.language), facts=speak_facts(facts, case.language),
-                            intent=OFFER_INTENT)
-    if settings.TTS_ENABLED and providers.current().sarvam:
-        msg.audio_url = f"{settings.PUBLIC_BASE_URL.rstrip('/')}/v1/audio/{secrets.token_hex(16)}"
-    audit.log(db, case.id, now, "HELP_OFFERED", {"message_id": msg.id, "lang": case.language}, actor="AGENT")
-    return msg
+    tts = settings.TTS_ENABLED and providers.current().sarvam
+    audio = (lambda: f"{settings.PUBLIC_BASE_URL.rstrip('/')}/v1/audio/{secrets.token_hex(16)}") if tts else (lambda: None)
+    intro = add_agent_message(db, case, investigation.intro_text(txn, lang), now, intent="investigation",
+                              actions=[{"type": "INVESTIGATION", "agents": agents}],
+                              facts=speak_facts(facts, lang))
+    intro.audio_url = audio()
+    sit = case_situation(case)
+    conclusion = add_agent_message(db, case, investigation.conclusion_text(db, case, lang), now, intent="conclusion",
+                                   chips=templates.chips(sit, facts, lang), facts=speak_facts(facts, lang))
+    conclusion.audio_url = audio()
+    audit.log(db, case.id, now, "INVESTIGATION_SHOWN", {"lang": lang, "agents": [a["id"] for a in agents],
+                                                        "changed_sources": changed, "situation": sit}, actor="AGENT")
+    return {"intro": message_view(intro), "agents": agents, "conclusion": message_view(conclusion)}
 
 
 @router.get("/briefing")

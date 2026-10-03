@@ -169,8 +169,7 @@
       })
       .catch((err) => {
         const denied = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
-        settle({ error: denied ? "Microphone permission is blocked. Allow it in the browser, or type instead."
-                               : "No microphone available. Please type instead." });
+        settle({ error: denied ? window.t("micBlocked") : window.t("noMic") });
       });
 
     return {
@@ -196,12 +195,12 @@
     const el = document.createElement("div");
     el.className = "sheet-backdrop";
     el.innerHTML = `
-      <div class="sheet" role="dialog" aria-modal="true" aria-label="Listening">
+      <div class="sheet" role="dialog" aria-modal="true" aria-label="${window.t("listening")}">
         <div class="sheet__grip" aria-hidden="true"></div>
-        <p class="sheet__hint" data-hint>Starting the microphone…</p>
-        <button class="orb" data-orb aria-label="Stop listening and send"><span class="orb__core">${MIC_SVG}</span></button>
+        <p class="sheet__hint" data-hint>${window.t("micStarting")}</p>
+        <button class="orb" data-orb aria-label="${window.t("stopSend")}"><span class="orb__core">${MIC_SVG}</span></button>
         <p class="sheet__transcript" data-transcript aria-live="polite"></p>
-        <button class="btn-link" data-cancel>Cancel</button>
+        <button class="btn-link" data-cancel>${window.t("cancel")}</button>
       </div>`;
     host.appendChild(el);
     requestAnimationFrame(() => el.classList.add("is-open"));
@@ -213,13 +212,13 @@
       lang,
       onLevel: (lvl) => $orb.style.setProperty("--level", lvl.toFixed(3)),
       onText: (t) => { $text.textContent = t; },
-      onStart: () => { $hint.textContent = "Listening… speak in English, हिंदी or मराठी"; },
+      onStart: () => { $hint.textContent = window.t("listenHint"); },
     });
     const onKey = (e) => { if (e.key === "Escape") ctrl.cancel(); };
     document.addEventListener("keydown", onKey);
     el.querySelector("[data-cancel]").onclick = () => ctrl.cancel();
     el.onclick = (e) => { if (e.target === el) ctrl.cancel(); };
-    $orb.onclick = () => { $hint.textContent = "Got it…"; ctrl.stop(); };
+    $orb.onclick = () => { $hint.textContent = window.t("gotIt"); ctrl.stop(); };
     let startY = null; // swipe down to cancel
     const sheet = el.querySelector(".sheet");
     sheet.addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; }, { passive: true });

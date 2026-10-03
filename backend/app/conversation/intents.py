@@ -164,14 +164,3 @@ def redact(text: str) -> str:
     """Transcripts are stored without long digit sequences (account numbers, refs, OTPs)."""
     return _LONG_DIGITS.sub("[number]", text or "")
 
-
-# Answers to the agent's proactive "Would you like me to check what happened?" offer. Only an
-# explicit, short "no" declines; everything else is taken as asking for help (never as a retry "yes").
-_OFFER_DECLINE = {"no", "nope", "no thanks", "no thank you", "not now", "no need", "nahi", "nahin", "nahi chahiye",
-                  "nahin chahiye", "nahi ji", "nako", "nahi thanks", "gar nahi", "garaj nahi", "nahi dhanyavad",
-                  "नहीं", "नही", "नहीं चाहिए", "नहीं धन्यवाद", "नको", "नाही", "गरज नाही", "नाही धन्यवाद"}
-
-
-def is_offer_decline(text: str) -> bool:
-    t = " ".join(TOKEN.findall((text or "").lower()))
-    return t in _OFFER_DECLINE

@@ -75,7 +75,18 @@
     - `late_debit` makes the S1 "yes" hit the live re-check.
   - Both have API tests and console buttons.
 
-- **The agent speaks first after a failure in front of the user** (mentor feedback, 2026-10-03; CLAUDE.md team decision 3).
+- **Investigation by six agents + UI language toggle** (owner request, 2026-10-03; CLAUDE.md decisions 3 and 4). This replaces the "Would you like me to check?" offer below.
+  - **Investigation:**
+    - After a Scan & Pay failure, `/v1/cases/open {"investigate": true}` returns an intro, six agents (Network, Bank, Diagnosis, Rules, Safety, Follow-up) and a conclusion.
+    - Every line is a template filled from real records (`app/conversation/investigation.py`).
+    - The Safety agent reports the live re-fetch made while opening. Its silent trigger `USER_INVESTIGATE` avoids a duplicate update message.
+  - **Web:** a Grok-style `InvestigationPanel`. Agents appear one by one with "thinking" dots, then their lines and a verdict badge; the spoken conclusion follows, then hands-free listening.
+  - **Language:**
+    - EN/हिं/मरा toggle in every header; all UI text is in `I18N` (`data.js`).
+    - `X-UI-Lang` makes replies, status lines, next actions and failure reasons follow the UI language (`app/i18n.py`, a request contextvar).
+  - **Checked in headless Chrome (Hindi UI):** scan → pay → failed → investigation, 2/6 mid-way then 6/6 → Hindi conclusion and chips → listening.
+  - **Tests:** 223 pass.
+- **The agent speaks first after a failure in front of the user** (mentor feedback, 2026-10-03; CLAUDE.md team decision 3). The offer step was replaced by the investigation above.
   - **Flow:** Home → Scan & Pay (mock viewfinder, `POST /v1/scan`) → amount → PIN → the payment fails on purpose (`DEMO_SCAN_PAY_FAILURE`, default `debited` → F4) → failure screen about 2 s → the chat opens.
   - **The offer:** `/v1/cases/open` with `offer_help` adds one message, in the user's language (`templates.OFFER`, en/hi/mr), with chips "Yes, please help" / "No, thanks" and TTS. The app speaks it, then starts the hands-free loop.
   - **Answers:** only an explicit short "no" ends the conversation; anything else, "yes" included, gets the status answer. A "yes" to the offer can never confirm a retry; this is tested on a RETRY_OFFERED case.

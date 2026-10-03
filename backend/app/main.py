@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app import providers
+from app import i18n, providers
 from app.bootstrap import init_database
 from app.config import Settings, get_settings
 from app.scheduler import Worker
@@ -48,8 +48,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def no_stale_web_files(request, call_next):
+        # UI language from the app's toggle (X-UI-Lang), visible to the views and the turn handler.
+        token = i18n.set_ui_lang(request.headers.get("x-ui-lang"))
+        try:
+            response = await call_next(request)
+        finally:
+            i18n.reset_ui_lang(token)
         # The UI has no build step / hashed filenames: make browsers revalidate so edits show up.
-        response = await call_next(request)
         if not request.url.path.startswith(("/v1", "/mock")):
             response.headers["Cache-Control"] = "no-cache"
         return response

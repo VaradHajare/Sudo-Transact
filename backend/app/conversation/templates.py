@@ -240,35 +240,6 @@ _BRIEFING_KEYS = {"DISPUTED": "DISPUTED", "DUPLICATE_DISPUTED": "DISPUTED"}
 # Situations that produce an agent "update" message in the chat when they happen in the background.
 UPDATE_SITUATIONS = {"DISPUTED", "DUPLICATE_DISPUTED", "REVERSED", "SUCCEEDED", "RESOLVED_BY_RETRY"}
 
-# ------------------------------------------------------------------ proactive offer (right after a payment fails)
-# Team decision (mentor feedback, 2026-10-03): when a payment fails in front of the user, the agent
-# speaks first and offers help, instead of waiting for a tap on the mic.
-OFFER = {
-    "en": {
-        "FAILED": "Your ₹{amount} payment to {payee} didn't go through. Would you like me to check what happened to your money?",
-        "PENDING": "Your ₹{amount} payment to {payee} is still pending. Would you like me to check what is happening with your money?",
-    },
-    "hi": {
-        "FAILED": "{payee} को आपका {amount} रुपये का पेमेंट नहीं हो पाया। क्या मैं देखूँ कि आपके पैसे के साथ क्या हुआ?",
-        "PENDING": "{payee} को आपका {amount} रुपये का पेमेंट अभी रुका हुआ है। क्या मैं देखूँ कि आपके पैसे के साथ क्या हो रहा है?",
-    },
-    "mr": {
-        "FAILED": "{payee} ला केलेले तुमचे {amount} रुपयांचे पेमेंट झाले नाही. तुमच्या पैशांचे काय झाले ते मी पाहू का?",
-        "PENDING": "{payee} ला केलेले तुमचे {amount} रुपयांचे पेमेंट अजून प्रलंबित आहे. तुमच्या पैशांचे काय होत आहे ते मी पाहू का?",
-    },
-}
-
-
-def offer_text(txn_status: str, facts: Facts, lang: str) -> str:
-    lang = _lang(lang)
-    return _fill(OFFER[lang]["PENDING" if txn_status == "PENDING" else "FAILED"], facts, lang)
-
-
-def offer_chips(facts: Facts, lang: str) -> list[dict]:
-    labels = CHIP_LABELS[_lang(lang)]
-    return [{"id": i, "label": _fill(labels[i], facts, lang)} for i in ("help", "no_thanks")]
-
-
 # ------------------------------------------------------------------ human reviewer's outcome (posted to the chat)
 # The reviewer's own notes stay internal; the user gets a fixed, number-checked message.
 REVIEW = {
@@ -298,28 +269,107 @@ def review_text(decision: str, facts: Facts, lang: str) -> str:
 # ------------------------------------------------------------------ chips
 CHIP_LABELS = {
     "en": {"retry": "Pay ₹{amount} again", "talk_to_human": "Talk to a human", "why": "Why?",
-           "what_if": "What if it doesn't come back?", "help": "Yes, please help", "no_thanks": "No, thanks"},
+           "what_if": "What if it doesn't come back?"},
     "hi": {"retry": "₹{amount} दोबारा भेजें", "talk_to_human": "किसी इंसान से बात करें", "why": "क्यों?",
-           "what_if": "अगर नहीं आया तो?", "help": "हाँ, मदद कीजिए", "no_thanks": "नहीं, धन्यवाद"},
+           "what_if": "अगर नहीं आया तो?"},
     "mr": {"retry": "₹{amount} पुन्हा पाठवा", "talk_to_human": "माणसाशी बोला", "why": "का?",
-           "what_if": "परत नाही आले तर?", "help": "हो, मदत करा", "no_thanks": "नाही, धन्यवाद"},
+           "what_if": "परत नाही आले तर?"},
 }
 
-# Short English status line for the case card / transaction details screen.
+# Short status line for the case card / transaction details screen, in the UI language.
 STATUS_LINE = {
-    "RETRY_OFFER": "No money taken · safe to pay again",
-    "PRE_DEBIT_WAIT": "No money taken · waiting for the bank's final status",
-    "PENDING": "Processing · don't pay again yet",
-    "BANK_DOWN": "Bank is down · your money is safe",
-    "DEBIT_WAIT": "Money should return by {date}",
-    "DISPUTED": "Complaint raised · ₹{comp} compensation flagged",
-    "DUPLICATE_DISPUTED": "Complaint raised for the extra debit",
-    "REVERSED": "Money returned on {rdate}",
-    "SUCCEEDED": "Payment completed",
-    "ESCALATED": "With a human expert",
-    "ESCALATED_USER": "With a human expert",
-    "REVIEWED": "Reviewed by a specialist",
-    "RESOLVED_BY_RETRY": "Paid again successfully",
+    "en": {
+        "RETRY_OFFER": "No money taken · safe to pay again",
+        "PRE_DEBIT_WAIT": "No money taken · waiting for the bank's final status",
+        "PENDING": "Processing · don't pay again yet",
+        "BANK_DOWN": "Bank is down · your money is safe",
+        "DEBIT_WAIT": "Money should return by {date}",
+        "DISPUTED": "Complaint raised · ₹{comp} compensation flagged",
+        "DUPLICATE_DISPUTED": "Complaint raised for the extra debit",
+        "REVERSED": "Money returned on {rdate}",
+        "SUCCEEDED": "Payment completed",
+        "ESCALATED": "With a human expert",
+        "ESCALATED_USER": "With a human expert",
+        "REVIEWED": "Reviewed by a specialist",
+        "RESOLVED_BY_RETRY": "Paid again successfully",
+    },
+    "hi": {
+        "RETRY_OFFER": "कोई पैसा नहीं कटा · दोबारा भेजना सुरक्षित",
+        "PRE_DEBIT_WAIT": "कोई पैसा नहीं कटा · बैंक की अंतिम स्थिति का इंतज़ार",
+        "PENDING": "प्रोसेस हो रहा है · अभी दोबारा न भेजें",
+        "BANK_DOWN": "बैंक में दिक्कत है · आपका पैसा सुरक्षित है",
+        "DEBIT_WAIT": "पैसा {date} तक वापस आना चाहिए",
+        "DISPUTED": "शिकायत दर्ज · ₹{comp} मुआवज़ा दर्ज",
+        "DUPLICATE_DISPUTED": "ज़्यादा कटे पैसे की शिकायत दर्ज",
+        "REVERSED": "पैसा {rdate} को वापस आ गया",
+        "SUCCEEDED": "पेमेंट पूरा हुआ",
+        "ESCALATED": "विशेषज्ञ देख रहे हैं",
+        "ESCALATED_USER": "विशेषज्ञ देख रहे हैं",
+        "REVIEWED": "विशेषज्ञ ने जाँच ली है",
+        "RESOLVED_BY_RETRY": "दोबारा भेजा गया पेमेंट सफल रहा",
+    },
+    "mr": {
+        "RETRY_OFFER": "पैसे कापले नाहीत · पुन्हा पाठवणे सुरक्षित",
+        "PRE_DEBIT_WAIT": "पैसे कापले नाहीत · बँकेच्या अंतिम स्थितीची प्रतीक्षा",
+        "PENDING": "प्रक्रिया सुरू आहे · आत्ता पुन्हा पाठवू नका",
+        "BANK_DOWN": "बँकेत अडचण आहे · तुमचे पैसे सुरक्षित आहेत",
+        "DEBIT_WAIT": "पैसे {date} पर्यंत परत यायला हवेत",
+        "DISPUTED": "तक्रार नोंदवली · ₹{comp} भरपाई नोंदवली",
+        "DUPLICATE_DISPUTED": "जास्त कापलेल्या पैशांची तक्रार नोंदवली",
+        "REVERSED": "पैसे {rdate} रोजी परत आले",
+        "SUCCEEDED": "पेमेंट पूर्ण झाले",
+        "ESCALATED": "तज्ञ पाहत आहेत",
+        "ESCALATED_USER": "तज्ञ पाहत आहेत",
+        "REVIEWED": "तज्ञाने तपासणी केली आहे",
+        "RESOLVED_BY_RETRY": "पुन्हा पाठवलेले पेमेंट यशस्वी झाले",
+    },
+}
+
+# What the user should do next (case card), in the UI language.
+NEXT_ACTION = {
+    "en": {
+        "RETRY_OFFER": "You can safely pay again", "PRE_DEBIT_WAIT": "Wait; don't pay again yet",
+        "PENDING": "Wait; don't pay again yet", "BANK_DOWN": "Try again later",
+        "DEBIT_WAIT": "Wait for the automatic refund", "DISPUTED": "Complaint raised; nothing to do",
+        "DUPLICATE_DISPUTED": "Complaint raised; nothing to do", "REVERSED": "Nothing to do",
+        "SUCCEEDED": "Nothing to do", "ESCALATED": "A human expert will reply here",
+        "ESCALATED_USER": "A human expert will reply here", "REVIEWED": "See the specialist's reply",
+        "RESOLVED_BY_RETRY": "Nothing to do",
+    },
+    "hi": {
+        "RETRY_OFFER": "आप सुरक्षित रूप से दोबारा भेज सकते हैं", "PRE_DEBIT_WAIT": "इंतज़ार करें; अभी दोबारा न भेजें",
+        "PENDING": "इंतज़ार करें; अभी दोबारा न भेजें", "BANK_DOWN": "थोड़ी देर बाद कोशिश करें",
+        "DEBIT_WAIT": "अपने आप रिफ़ंड का इंतज़ार करें", "DISPUTED": "शिकायत दर्ज; आपको कुछ नहीं करना है",
+        "DUPLICATE_DISPUTED": "शिकायत दर्ज; आपको कुछ नहीं करना है", "REVERSED": "कुछ करने की ज़रूरत नहीं",
+        "SUCCEEDED": "कुछ करने की ज़रूरत नहीं", "ESCALATED": "विशेषज्ञ यहीं जवाब देंगे",
+        "ESCALATED_USER": "विशेषज्ञ यहीं जवाब देंगे", "REVIEWED": "विशेषज्ञ का जवाब देखें",
+        "RESOLVED_BY_RETRY": "कुछ करने की ज़रूरत नहीं",
+    },
+    "mr": {
+        "RETRY_OFFER": "तुम्ही सुरक्षितपणे पुन्हा पाठवू शकता", "PRE_DEBIT_WAIT": "थांबा; आत्ता पुन्हा पाठवू नका",
+        "PENDING": "थांबा; आत्ता पुन्हा पाठवू नका", "BANK_DOWN": "थोड्या वेळाने प्रयत्न करा",
+        "DEBIT_WAIT": "आपोआप परताव्याची वाट पाहा", "DISPUTED": "तक्रार नोंदवली; तुम्हाला काही करायचे नाही",
+        "DUPLICATE_DISPUTED": "तक्रार नोंदवली; तुम्हाला काही करायचे नाही", "REVERSED": "काहीही करायची गरज नाही",
+        "SUCCEEDED": "काहीही करायची गरज नाही", "ESCALATED": "तज्ञ इथेच उत्तर देतील",
+        "ESCALATED_USER": "तज्ञ इथेच उत्तर देतील", "REVIEWED": "तज्ञांचे उत्तर पाहा",
+        "RESOLVED_BY_RETRY": "काहीही करायची गरज नाही",
+    },
+}
+
+# Failure reasons shown on the transaction screen, by failure code (English keeps the record's text).
+FAILURE_REASON = {
+    "hi": {
+        "BANK_DECLINED": "आपके बैंक ने पेमेंट अस्वीकार कर दिया", "TXN_FAILED": "लेन-देन असफल रहा",
+        "BENEFICIARY_CREDIT_FAILED": "पैसा कटा, लेकिन पाने वाले के खाते में नहीं पहुंचा",
+        "BAD_NETWORK": "नेटवर्क की खराबी", "BANK_UNAVAILABLE": "आपका बैंक अभी जवाब नहीं दे रहा",
+        "PENDING": "आपके बैंक की पुष्टि का इंतज़ार है",
+    },
+    "mr": {
+        "BANK_DECLINED": "तुमच्या बँकेने पेमेंट नाकारले", "TXN_FAILED": "व्यवहार अयशस्वी झाला",
+        "BENEFICIARY_CREDIT_FAILED": "पैसे कापले, पण घेणाऱ्याच्या खात्यात पोहोचले नाहीत",
+        "BAD_NETWORK": "नेटवर्कमध्ये बिघाड", "BANK_UNAVAILABLE": "तुमची बँक आत्ता प्रतिसाद देत नाही",
+        "PENDING": "तुमच्या बँकेच्या पुष्टीची प्रतीक्षा आहे",
+    },
 }
 
 
@@ -364,8 +414,21 @@ def briefing_text(sit: str, facts: Facts, lang: str) -> str | None:
     return _fill(BRIEFING[lang][key], facts, lang) if key else None
 
 
-def status_line(sit: str, facts: Facts) -> str:
-    return _fill(STATUS_LINE.get(sit, ""), facts, "en")
+def status_line(sit: str, facts: Facts, lang: str = "en") -> str:
+    lang = _lang(lang)
+    return _fill(STATUS_LINE[lang].get(sit, ""), facts, lang)
+
+
+def next_action(sit: str, lang: str = "en") -> str | None:
+    return NEXT_ACTION[_lang(lang)].get(sit)
+
+
+def failure_reason(code: str | None, status: str, record_text: str | None, lang: str = "en") -> str | None:
+    """The record's own text in English; a translation by failure code in Hindi / Marathi."""
+    if not record_text or _lang(lang) == "en":
+        return record_text
+    key = "PENDING" if status == "PENDING" else code
+    return FAILURE_REASON[_lang(lang)].get(key or "", record_text)
 
 
 def chips(sit: str, facts: Facts, lang: str) -> list[dict]:

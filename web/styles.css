@@ -53,6 +53,15 @@
   --header-height: 56px;
   --mic-size: 68px;
 
+  /* investigation agents (chat) */
+  --color-agent-network: #0086c9;
+  --color-agent-bank: #039855;
+  --color-agent-diagnosis: #6941c6;
+  --color-agent-rules: #002970;
+  --color-agent-safety: #b54708;
+  --color-agent-followup: #c11574;
+  --color-inv-bg: #f8fbff;
+
   /* Scan & Pay viewfinder */
   --color-scanner-bg: #0b1220;
 
@@ -360,6 +369,62 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 
 @media (min-width: 480px) {
   .mic-dock { bottom: var(--space-6); }
+}
+
+/* ------------------------------------------------------------------ language toggle (every header) */
+.lang-toggle { display: inline-flex; flex: none; padding: 2px; border-radius: var(--radius-pill); background: var(--color-bg); border: 1px solid var(--color-border); }
+.lang-toggle__btn {
+  border: 0; background: transparent; color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 700;
+  min-width: 34px; padding: var(--space-1) var(--space-2); border-radius: var(--radius-pill); line-height: 1.3;
+}
+.lang-toggle__btn[aria-pressed="true"] { background: var(--color-brand-navy); color: #fff; }
+.app-header--brand .lang-toggle { background: rgba(255, 255, 255, 0.12); border-color: transparent; }
+.app-header--brand .lang-toggle__btn { color: rgba(255, 255, 255, 0.8); }
+.app-header--brand .lang-toggle__btn[aria-pressed="true"] { background: #fff; color: var(--color-brand-navy); }
+
+/* ------------------------------------------------------------------ investigation (agents in the chat) */
+.inv { align-self: stretch; background: var(--color-inv-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); }
+.inv__head { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; list-style: none; font-size: var(--font-size-sm); font-weight: 700; color: var(--color-brand-navy); padding: var(--space-1) 0; }
+.inv__head::-webkit-details-marker { display: none; }
+.inv__spark { display: inline-flex; color: var(--color-brand-sky); }
+.inv--live .inv__spark { animation: spark 1.4s ease-in-out infinite; }
+@keyframes spark { 50% { transform: scale(1.25) rotate(20deg); } }
+.inv__title { flex: 1; }
+.inv__count { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-muted); }
+.inv__list { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.agent { display: flex; gap: var(--space-3); padding: var(--space-2); border-radius: var(--radius-sm); background: var(--color-surface); box-shadow: var(--shadow-card); animation: agent-in 0.3s ease-out; }
+@keyframes agent-in { from { opacity: 0; transform: translateY(6px); } }
+.agent__avatar {
+  --agent: var(--color-brand-navy);
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: var(--radius-pill); color: #fff; background: var(--agent);
+}
+.agent--network .agent__avatar { --agent: var(--color-agent-network); }
+.agent--bank .agent__avatar { --agent: var(--color-agent-bank); }
+.agent--diagnosis .agent__avatar { --agent: var(--color-agent-diagnosis); }
+.agent--rules .agent__avatar { --agent: var(--color-agent-rules); }
+.agent--safety .agent__avatar { --agent: var(--color-agent-safety); }
+.agent--followup .agent__avatar { --agent: var(--color-agent-followup); }
+.agent--active .agent__avatar { box-shadow: 0 0 0 3px var(--color-brand-sky-soft), 0 0 0 5px var(--agent); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 3px var(--color-brand-sky-soft), 0 0 0 8px transparent; } }
+.agent__body { flex: 1; min-width: 0; }
+.agent__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.agent__name { font-size: var(--font-size-sm); font-weight: 700; }
+.agent__thinking { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--font-size-xs); color: var(--color-text-muted); font-style: italic; }
+.agent__dots { display: inline-flex; gap: 3px; }
+.agent__dots span { width: 4px; height: 4px; border-radius: var(--radius-pill); background: currentColor; animation: dot 1.2s infinite ease-in-out; }
+.agent__dots span:nth-child(2) { animation-delay: 0.15s; }
+.agent__dots span:nth-child(3) { animation-delay: 0.3s; }
+.agent__verdict { font-size: var(--font-size-xs); font-weight: 700; padding: 1px var(--space-2); border-radius: var(--radius-pill); white-space: nowrap; }
+.agent__verdict--ok { background: var(--color-success-bg); color: var(--color-success); }
+.agent__verdict--warn { background: var(--color-warning-bg); color: var(--color-warning); }
+.agent__verdict--bad { background: var(--color-danger-bg); color: var(--color-danger); }
+.agent__check { display: inline-flex; color: var(--color-success); }
+.agent__lines { margin: var(--space-1) 0 0; padding: 0; list-style: none; font-size: var(--font-size-xs); color: var(--color-text-muted); line-height: 1.45; }
+.agent__lines li { animation: agent-in 0.25s ease-out; }
+.agent__lines li::before { content: "› "; color: var(--color-brand-sky); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) {
+  .agent, .agent__lines li, .inv--live .inv__spark, .agent--active .agent__avatar { animation: none; }
 }
 
 /* ------------------------------------------------------------------ Scan & Pay */

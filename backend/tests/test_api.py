@@ -295,33 +295,48 @@ def test_scan_pay_fails_on_purpose_and_case_is_prepared(api):
     assert (out["case"]["class"], out["case"]["decision"]) == ("F4_DEBIT_NO_CREDIT", "WAIT")
 
 
-def test_agent_offers_help_first_then_answers(api):
+def test_failed_payment_opens_with_six_agent_investigation_in_ui_language(api):
     txn = scan_and_pay(api, 64000)["transaction"]
-    opened = api.post("/v1/cases/open", json={"txn_id": txn["id"], "offer_help": True, "lang": "hi"}).json()
-    offer = opened["offer"]
-    assert offer and offer["role"] == "agent" and "640" in offer["text"] and "क्या मैं देखूँ" in offer["text"]
-    assert [c["id"] for c in offer["chips"]] == ["help", "no_thanks"]
-    # opening again never repeats the offer
-    again = api.post("/v1/cases/open", json={"txn_id": txn["id"], "offer_help": True}).json()
-    assert again["offer"] is None and len(again["messages"]) == 1
-    r = say(api, opened["case"]["id"], "haan")
-    assert r["intent"] == "status_check" and r["situation"] == "DEBIT_WAIT"
+    r = api.post("/v1/cases/open", json={"txn_id": txn["id"], "investigate": True},
+                 headers={"X-UI-Lang": "hi"}).json()
+    inv = r["investigation"]
+    assert [a["id"] for a in inv["agents"]] == ["network", "bank", "diagnosis", "rules", "safety", "followup"]
+    assert inv["intro"]["text"].startswith("Kaveri Restaurant को आपका 640 रुपये का पेमेंट असफल रहा")
+    bank = next(a for a in inv["agents"] if a["id"] == "bank")
+    assert "640 रुपये कटे" in " ".join(bank["lines"]) and bank["name"] == "बैंक एजेंट"
+    assert any("F4" in line for line in next(a for a in inv["agents"] if a["id"] == "diagnosis")["lines"])
+    assert inv["conclusion"]["text"].startswith("जाँच पूरी हुई। हाँ, आपके खाते से 640 रुपये कटे")
+    assert [c["id"] for c in inv["conclusion"]["chips"]] == ["what_if", "why", "talk_to_human"]
+    # labels follow the UI language too
+    assert r["case"]["card"]["statusLine"].startswith("पैसा") and r["transaction"]["failureReason"].startswith("पैसा कटा")
+    # once per case; the chat history keeps both messages, the intro carrying the agents
+    again = api.post("/v1/cases/open", json={"txn_id": txn["id"], "investigate": True}).json()
+    assert again["investigation"] is None and len(again["messages"]) == 2
+    assert again["messages"][0]["actions"][0]["type"] == "INVESTIGATION"
 
 
-def test_no_thanks_to_the_offer_ends_the_conversation(api):
+def test_investigation_safety_agent_reports_a_live_change(api):
     txn = scan_and_pay(api)["transaction"]
-    cid = api.post("/v1/cases/open", json={"txn_id": txn["id"], "offer_help": True}).json()["case"]["id"]
-    r = say(api, cid, "no thanks")
-    assert r["intent"] == "goodbye" and r["end_conversation"] is True
+    api.post("/mock/inject", json={"txn_id": txn["id"], "ledger": {"state": "REVERSED"}})
+    inv = api.post("/v1/cases/open", json={"txn_id": txn["id"], "investigate": True}).json()["investigation"]
+    safety = next(a for a in inv["agents"] if a["id"] == "safety")
+    assert safety["tone"] == "warn" and "bank" in " ".join(safety["lines"])
+    assert "came back" in inv["conclusion"]["text"]
 
 
-def test_yes_to_the_offer_never_confirms_a_retry(api):
-    # Sharma Medicals has a retry on offer; "yes" right after a help offer must not confirm it.
-    opened = api.post("/v1/cases/open", json={"txn_id": "txn_s1_sharma", "offer_help": True}).json()
-    assert opened["case"]["state"] == "RETRY_OFFERED" and opened["offer"]
-    r = say(api, opened["case"]["id"], "yes")
-    assert r["intent"] == "status_check" and r["actions"] == []
-    assert r["case"]["state"] == "RETRY_OFFERED"
+def test_ui_language_decides_the_reply_language(api):
+    cid = open_case(api, "txn_s2_citymobiles")["case"]["id"]
+    # Hinglish question, Marathi UI: the answer is in Marathi
+    r = api.post("/v1/voice/turn", json={"case_id": cid, "text": "paise kat gaye par mila nahi"},
+                 headers={"X-UI-Lang": "mr"}).json()
+    assert r["lang"] == "mr" and "रुपये" in r["speak"]["text"]
+    # English UI, Hindi question: English answer
+    r = api.post("/v1/voice/turn", json={"case_id": cid, "text": "मेरे पैसे कटे क्या?"},
+                 headers={"X-UI-Lang": "en"}).json()
+    assert r["lang"] == "en" and r["speak"]["text"].startswith("Yes, ₹1,499 was taken")
+    # no header: the old behaviour (detected language)
+    r = say(api, cid, "paise kat gaye par mila nahi")
+    assert r["lang"] == "hi"
 
 
 def test_scan_pay_can_be_switched_off(client):

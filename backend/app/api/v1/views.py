@@ -4,26 +4,12 @@ import json
 from sqlalchemy.orm import Session
 
 from app import clock
+from app.i18n import label_lang
 from app.conversation import templates
 from app.conversation.facts import case_facts, case_situation
 from app.engine import audit
 from app.models import Case, CompensationClaim, Dispute, Message, Transaction
 
-NEXT_ACTION = {
-    "RETRY_OFFER": "You can safely pay again",
-    "PRE_DEBIT_WAIT": "Wait; don't pay again yet",
-    "PENDING": "Wait; don't pay again yet",
-    "BANK_DOWN": "Try again later",
-    "DEBIT_WAIT": "Wait for the automatic refund",
-    "DISPUTED": "Complaint raised; nothing to do",
-    "DUPLICATE_DISPUTED": "Complaint raised; nothing to do",
-    "REVERSED": "Nothing to do",
-    "SUCCEEDED": "Nothing to do",
-    "ESCALATED": "A human expert will reply here",
-    "ESCALATED_USER": "A human expert will reply here",
-    "REVIEWED": "See the specialist's reply",
-    "RESOLVED_BY_RETRY": "Nothing to do",
-}
 
 
 def case_badge(db: Session, case: Case | None) -> dict | None:
@@ -31,7 +17,7 @@ def case_badge(db: Session, case: Case | None) -> dict | None:
         return None
     sit = case_situation(case)
     return {"id": case.id, "state": case.state, "situation": sit, "hasUpdate": case.has_unseen_update,
-            "statusLine": templates.status_line(sit, case_facts(db, case))}
+            "statusLine": templates.status_line(sit, case_facts(db, case), label_lang())}
 
 
 def txn_view(db: Session, t: Transaction, case: Case | None = None) -> dict:
@@ -41,7 +27,8 @@ def txn_view(db: Session, t: Transaction, case: Case | None = None) -> dict:
         "id": t.id, "payeeName": t.payee_name, "payeeVpa": t.payee_vpa, "amountPaise": t.amount_paise,
         "status": t.status, "debited": t.debited, "timestamp": clock.iso_ist(t.initiated_at), "note": t.note,
         "direction": t.direction, "category": t.category, "railLabel": t.rail_label, "upiRef": t.upi_ref,
-        "failureReason": t.failure_reason, "case": case_badge(db, case),
+        "failureReason": templates.failure_reason(t.failure_code, t.status, t.failure_reason, label_lang()),
+        "case": case_badge(db, case),
     }
 
 
@@ -49,14 +36,15 @@ def case_view(db: Session, case: Case) -> dict:
     txn = db.get(Transaction, case.txn_id)
     sit = case_situation(case) if case.class_ else None
     facts = case_facts(db, case)
+    lang = label_lang()
     dispute = db.query(Dispute).filter(Dispute.case_id == case.id).order_by(Dispute.id.desc()).first()
     comp = db.query(CompensationClaim).filter(CompensationClaim.case_id == case.id).one_or_none()
     return {
         "id": case.id, "txn_id": case.txn_id, "state": case.state, "class": case.class_,
         "decision": case.decision, "rule": case.rule_id, "situation": sit, "language": case.language,
         "has_unseen_update": case.has_unseen_update,
-        "status_line": templates.status_line(sit, facts) if sit else None,
-        "next_action": NEXT_ACTION.get(sit) if sit else None,
+        "status_line": templates.status_line(sit, facts, lang) if sit else None,
+        "next_action": templates.next_action(sit, lang) if sit else None,
         "expected_by": clock.to_ist(case.deadline_ts).date().isoformat() if case.deadline_ts else None,
         "deadline": clock.iso_ist(case.deadline_ts),
         "dispute": {"ref": dispute.mock_udir_ref, "kind": dispute.kind, "amount_paise": dispute.amount_paise,
@@ -66,8 +54,8 @@ def case_view(db: Session, case: Case) -> dict:
         "conflicts": json.loads(case.conflicts_json or "[]"),
         "card": {"payeeName": txn.payee_name, "payeeVpa": txn.payee_vpa, "amountPaise": txn.amount_paise,
                  "status": txn.status, "timestamp": clock.iso_ist(txn.initiated_at),
-                 "statusLine": templates.status_line(sit, facts) if sit else None,
-                 "nextAction": NEXT_ACTION.get(sit) if sit else None,
+                 "statusLine": templates.status_line(sit, facts, lang) if sit else None,
+                 "nextAction": templates.next_action(sit, lang) if sit else None,
                  "expectedBy": clock.to_ist(case.deadline_ts).date().isoformat() if case.deadline_ts else None},
         "created_at": clock.iso_ist(case.created_at), "updated_at": clock.iso_ist(case.updated_at),
     }

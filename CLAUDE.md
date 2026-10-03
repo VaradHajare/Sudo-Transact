@@ -8,9 +8,12 @@ Voice-first AI support teammate inside Paytm. It resolves failed or pending UPI 
 1. **The demo app is the web prototype in `web/`** (plain HTML/CSS/JS, no framework, no build step), not Kotlin. Wherever the spec says Kotlin / Jetpack Compose, read "the web app in `web/`". A Kotlin port may come later, so keep the API clean and app-agnostic.
 2. **SQLite, not Postgres. A jobs table, not Redis.** Do not set up Postgres or Redis.
 3. **The agent speaks first when a payment fails in front of the user** (mentor feedback, 3 Oct 2026). This replaces "speaks only after the user taps" (spec 1.0, 6.10) for that moment only.
-   - Flow: Scan & Pay fails (on purpose in the demo, `DEMO_SCAN_PAY_FAILURE`), then the chat opens and the agent offers help by voice, then the hands-free loop listens.
-   - A "yes" to that offer means "help me". It is never a retry confirmation.
+   - Flow: Scan & Pay fails (on purpose in the demo, `DEMO_SCAN_PAY_FAILURE`), then the chat opens: "Your payment failed. I'm running a detailed investigation."
+   - Six agents then appear one at a time, each showing its thinking: Network (NPCI), Bank (ledger + merchant credit), Diagnosis (F1-F10), Rules (decision), Safety (live re-check), Follow-up (deadline / dispute).
+   - Then the spoken conclusion, then the normal hands-free follow-up.
+   - Every agent line comes from real records (`app/conversation/investigation.py`). Never invent agent output.
    - The mic button on failed payments stays.
+4. **The UI language decides the reply language.** The app has an EN / हिं / मरा toggle in every header. It sends `X-UI-Lang`, and the agent answers in that language whatever language the user speaks. Status lines, next actions and failure reasons come back in it too. Without the header, replies follow the detected language.
 
 ## Repo layout
 ```

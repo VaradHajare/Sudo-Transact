@@ -37,7 +37,7 @@ copy .env.example .env            # then add your keys (see "Configuration")
 .venv\Scripts\python -m uvicorn app.main:app --port 8000
 ```
 
-Open **http://localhost:8000**. Tap **Scan & Pay**, enter an amount and any PIN. The payment fails on purpose (demo), and the AI agent opens and asks if you need help. Or tap **City Mobiles ₹1,499 → mic**, and say or type `paise kat gaye par mila nahi`. On Home, **Skip time +1 day** (twice) moves the mock clock past the deadline to show the automatic dispute.
+Open **http://localhost:8000**. Tap **Scan & Pay**, enter an amount and any PIN. The payment fails on purpose (demo). The AI agent opens, six agents investigate in front of you, and it tells you what happened. The **EN / हिं / मरा** toggle in the header sets the app's language, and the agent answers in it. Or tap **City Mobiles ₹1,499 → mic**, and say or type `paise kat gaye par mila nahi`. On Home, **Skip time +1 day** (twice) moves the mock clock past the deadline to show the automatic dispute.
 
 For the pitch, open **http://localhost:8000/console.html**. It shows the app in a phone frame next to the live agent activity panel, plus the review queue and the evaluation numbers. The full demo script, click by click, is in [`docs/DEMO.md`](docs/DEMO.md).
 

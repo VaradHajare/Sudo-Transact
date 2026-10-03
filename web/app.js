@@ -39,11 +39,20 @@
     scan: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7V3h4M17 3h4v4M21 17v4h-4M7 21H3v-4M3 12h18"/></svg>',
     phone: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>',
     bank: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 10l9-6 9 6M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18"/></svg>',
+    spark: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9z"/><path d="M19 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></svg>',
+    tick: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>',
+    network: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16.1a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="1"/></svg>',
+    diagnosis: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg>',
+    rules: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z"/></svg>',
+    safety: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>',
+    followup: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>',
     wallet: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M16 13h2M2 10h20"/></svg>',
   };
 
-  const HEADLINE = { SUCCESS: "Payment successful", FAILED: "Payment failed", PENDING: "Payment pending" };
-  const MIC_HINT = { FAILED: "Payment failed? Ask me", PENDING: "Payment pending? Ask me" };
+  // Labels in the UI language (looked up when used, so the language toggle applies at once).
+  const HEADLINE = new Proxy({}, { get: (_o, status) => t("h" + String(status)) });
+  const MIC_HINT = new Proxy({}, { get: (_o, status) => t("mic" + String(status)) });
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   /** Only failed or pending outgoing payments get the AI mic button. */
   function needsHelp(txn) {
@@ -52,15 +61,23 @@
 
   // ------------------------------------------------------------------ components
 
-  /** AppHeader. props: { title, subtitle?, back?: boolean, brand?: boolean, right?: html } */
-  function AppHeader({ title, subtitle, back, brand, right }) {
+  /** LangToggle: the UI language, which is also the language the agent answers in. props: {} */
+  function LangToggle() {
+    const current = getUiLang();
+    return `<div class="lang-toggle" role="group" aria-label="${esc(t("language"))}">${UI_LANGS.map(([lang, label]) =>
+      `<button type="button" class="lang-toggle__btn" data-lang="${lang}" lang="${lang}" aria-pressed="${lang === current}">${label}</button>`).join("")}</div>`;
+  }
+
+  /** AppHeader. props: { title, subtitle?, back?: boolean, brand?: boolean, right?: html, lang?: boolean } */
+  function AppHeader({ title, subtitle, back, brand, right, lang = true }) {
     return `
       <header class="app-header ${brand ? "app-header--brand" : ""}">
-        ${back ? `<button class="app-header__back" data-action="back" aria-label="Back">${Icon.back}</button>` : ""}
+        ${back ? `<button class="app-header__back" data-action="back" aria-label="${esc(t("back"))}">${Icon.back}</button>` : ""}
         <div class="app-header__titles">
           <h1 class="app-header__title">${title}</h1>
           ${subtitle ? `<p class="app-header__subtitle">${esc(subtitle)}</p>` : ""}
         </div>
+        ${lang ? LangToggle() : ""}
         ${right || ""}
       </header>`;
   }
@@ -73,12 +90,12 @@
   /** TxnRow. props: { txn } (transaction shape from TransactionRepository) */
   function TxnRow({ txn }) {
     const incoming = txn.direction === "IN";
-    const badge = txn.case && txn.case.hasUpdate ? '<span class="avatar__badge" title="New update"></span>' : "";
+    const badge = txn.case && txn.case.hasUpdate ? '<span class="avatar__badge" title="${esc(t("newUpdate"))}"></span>' : "";
     return `
       <a class="txn-row" href="#/txn/${encodeURIComponent(txn.id)}">
         <span class="avatar">${initials(txn.payeeName)}${badge}</span>
         <span class="txn-row__main">
-          <div class="txn-row__name">${incoming ? "Received from " : ""}${esc(txn.payeeName)}</div>
+          <div class="txn-row__name">${esc(incoming ? t("receivedFrom", { name: txn.payeeName }) : txn.payeeName)}</div>
           <div class="txn-row__meta">${esc(formatWhen(txn.timestamp))}</div>
           ${txn.case && txn.case.statusLine ? `<div class="txn-row__case">${esc(txn.case.statusLine)}</div>` : ""}
         </span>
@@ -91,7 +108,7 @@
 
   /** TxnList. props: { txns } */
   function TxnList({ txns }) {
-    if (!txns.length) return '<div class="state">No payments yet.</div>';
+    if (!txns.length) return `<div class="state">${esc(t("noPayments"))}</div>`;
     return `<div class="txn-list">${txns.map((t) => TxnRow({ txn: t })).join("")}</div>`;
   }
 
@@ -100,7 +117,7 @@
     return `
       <div class="mic-dock">
         <span class="mic-dock__hint">${esc(hint)}</span>
-        <button class="mic-fab" data-mic-txn="${esc(txnId)}" aria-label="${esc(hint)}: talk to ${esc(BRAND.assistantName)}">${Icon.mic}</button>
+        <button class="mic-fab" data-mic-txn="${esc(txnId)}" aria-label="${esc(hint)}: ${esc(t("talkTo", { name: BRAND.assistantName }))}">${Icon.mic}</button>
       </div>`;
   }
 
@@ -117,7 +134,7 @@
           <div style="text-align:right">${StatusPill({ status: card.status })}</div>
         </div>
         ${card.statusLine ? `<div class="case-card__line">${esc(card.statusLine)}</div>` : ""}
-        ${card.nextAction ? `<div class="case-card__next">Next: ${esc(card.nextAction)}${card.expectedBy ? ` · expected by ${esc(formatDay(card.expectedBy))}` : ""}</div>` : ""}
+        ${card.nextAction ? `<div class="case-card__next">${esc(t("next"))}: ${esc(card.nextAction)}${card.expectedBy ? ` · ${esc(t("expectedBy", { date: formatDay(card.expectedBy) }))}` : ""}</div>` : ""}
       </section>`;
   }
 
@@ -130,7 +147,7 @@
     const text = shownText === undefined ? message.text : shownText;
     return `
       <div class="bubble ${cls} ${pending ? "bubble--pending" : ""}" lang="${esc(message.lang || "")}" ${message.id ? `data-msg-id="${esc(message.id)}"` : ""}>
-        ${isUpdate ? '<span class="bubble__tag">Update</span>' : ""}<span class="bubble__text">${esc(text)}</span>
+        ${isUpdate ? `<span class="bubble__tag">${esc(t("update"))}</span>` : ""}<span class="bubble__text">${esc(text)}</span>
         ${message.ts ? `<span class="bubble__time">${esc(formatWhen(message.ts))}</span>` : ""}
       </div>`;
   }
@@ -145,7 +162,7 @@
 
   /** ThinkingDots. props: {} */
   function ThinkingDots() {
-    return '<div class="thinking" role="status" aria-label="Thinking"><span></span><span></span><span></span></div>';
+    return `<div class="thinking" role="status" aria-label="${esc(t("thinking"))}"><span></span><span></span><span></span></div>`;
   }
 
   /** ChatEmptyHint: shown before the first message. props: { voice: boolean } */
@@ -153,31 +170,69 @@
     const examples = ["Did my money get cut?", "paise kat gaye par mila nahi", "माझे पैसे कापले का?"];
     return `
       <div class="chat__hint">
-        <strong>Ask about this payment</strong>
-        I already know which payment you mean. ${voice ? "Tap the mic and speak, or type," : "Ask"} in English, हिंदी or मराठी.
+        <strong>${esc(t("askTitle"))}</strong>
+        ${esc(voice ? t("askVoice") : t("askText"))}
         <div class="chat__examples">${examples.map((e) => `<button class="chip" data-example="${esc(e)}">${esc(e)}</button>`).join("")}</div>
       </div>`;
   }
 
   /** Composer: mic (voice-first) + text input fallback. props: { disabled, voice: boolean } */
   function Composer({ disabled, voice }) {
-    const micLabel = voice ? "Speak" : "Voice is off on the server. Please type.";
+    const micLabel = esc(voice ? t("speak") : t("voiceOff"));
     return `
       <form class="composer" data-form="composer" autocomplete="off">
         <button type="button" class="icon-btn ${voice ? "" : "icon-btn--ghost"}" data-action="mic" title="${micLabel}" aria-label="${micLabel}" ${disabled ? "disabled" : ""}>${Icon.micSmall}</button>
-        <input class="composer__input" name="text" placeholder="Type your question…" aria-label="Your message" maxlength="500" ${disabled ? "disabled" : ""}>
-        <button type="submit" class="icon-btn" aria-label="Send" ${disabled ? "disabled" : ""}>${Icon.send}</button>
+        <input class="composer__input" name="text" placeholder="${esc(t("typeQuestion"))}" aria-label="${esc(t("yourMessage"))}" maxlength="500" ${disabled ? "disabled" : ""}>
+        <button type="submit" class="icon-btn" aria-label="${esc(t("send"))}" ${disabled ? "disabled" : ""}>${Icon.send}</button>
       </form>`;
   }
 
   /** Loading. props: { label } */
   function Loading({ label }) {
-    return `<div class="state" role="status"><div class="spinner"></div>${esc(label || "Loading…")}</div>`;
+    return `<div class="state" role="status"><div class="spinner"></div>${esc(label || t("loading"))}</div>`;
   }
 
   /** ErrorState. props: { message } */
   function ErrorState({ message }) {
-    return `<div class="state state--error">${esc(message)}<br><button class="btn-link" data-action="reload">Try again</button></div>`;
+    return `<div class="state state--error">${esc(message)}<br><button class="btn-link" data-action="reload">${esc(t("tryAgain"))}</button></div>`;
+  }
+
+  const AGENT_ICON = { network: Icon.network, bank: Icon.bank, diagnosis: Icon.diagnosis, rules: Icon.rules,
+    safety: Icon.safety, followup: Icon.followup };
+
+  /** InvestigationPanel: the agents' work right after a payment fails, Grok-style. The lines come
+   *  from the backend (real evidence, rules and re-check, in the UI language).
+   *  props: { agents: [{id, name, lines, tone, verdict}], progress: {agent, lines, done} | null }
+   *  (progress: the live animation; null = an earlier investigation, shown collapsed) */
+  function InvestigationPanel({ agents, progress }) {
+    const live = !!(progress && !progress.done);
+    const visible = live ? agents.slice(0, progress.agent + 1) : agents;
+    return `
+      <details class="inv ${live ? "inv--live" : ""}" ${progress ? "open" : ""}>
+        <summary class="inv__head">
+          <span class="inv__spark">${Icon.spark}</span>
+          <span class="inv__title">${esc(t("invTitle"))}</span>
+          <span class="inv__count">${live ? `${progress.agent}/${agents.length}` : esc(t("invAgents", { n: agents.length }))}</span>
+        </summary>
+        <ol class="inv__list">
+          ${visible.map((a, i) => {
+            const active = live && i === progress.agent;
+            const lines = active ? a.lines.slice(0, progress.lines) : a.lines;
+            const badge = active
+              ? `<span class="agent__thinking">${esc(t("agentThinking"))}<span class="agent__dots"><span></span><span></span><span></span></span></span>`
+              : a.verdict ? `<span class="agent__verdict agent__verdict--${esc(a.tone)}">${esc(a.verdict)}</span>`
+                : `<span class="agent__check">${Icon.tick}</span>`;
+            return `
+            <li class="agent agent--${esc(a.id)} ${active ? "agent--active" : ""}">
+              <span class="agent__avatar">${AGENT_ICON[a.id] || ""}</span>
+              <div class="agent__body">
+                <div class="agent__top"><span class="agent__name">${esc(a.name)}</span>${badge}</div>
+                <ul class="agent__lines">${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
+              </div>
+            </li>`;
+          }).join("")}
+        </ol>
+      </details>`;
   }
 
   /** KeyValue. props: { k, v } */
@@ -193,9 +248,9 @@
     const header = AppHeader({
       brand: true,
       title: `<span class="brand-mark">${esc(BRAND.appName)}</span>`,
-      subtitle: BRAND.prototypeLabel,
+      subtitle: t("prototype"),
     });
-    $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: "Loading payments…" })}</div></div>`;
+    $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: t("loadingPayments") })}</div></div>`;
     let txns;
     try {
       txns = await TransactionRepository.list();
@@ -205,29 +260,29 @@
     }
     if (!isCurrent()) return;
     // Only Scan & Pay is live in the prototype (it starts the demo's failed payment).
-    const tiles = [["Scan & Pay", Icon.scan, "#/scan"], ["To Mobile", Icon.phone], ["To Bank", Icon.bank], ["Balance", Icon.wallet]];
+    const tiles = [[t("scanPay"), Icon.scan, "#/scan"], [t("toMobile"), Icon.phone], [t("toBank"), Icon.bank], [t("balance"), Icon.wallet]];
     $app.innerHTML = `
       <div class="screen">
         ${header}
         <div class="screen__body">
           <div class="card">
             <div class="tiles">${tiles.map(([label, icon, href]) => href
-              ? `<a class="tile tile--live" href="${href}"><span class="tile__icon">${icon}</span>${label}</a>`
-              : `<span class="tile" aria-disabled="true"><span class="tile__icon">${icon}</span>${label}</span>`).join("")}</div>
+              ? `<a class="tile tile--live" href="${href}"><span class="tile__icon">${icon}</span>${esc(label)}</a>`
+              : `<span class="tile" aria-disabled="true"><span class="tile__icon">${icon}</span>${esc(label)}</span>`).join("")}</div>
           </div>
-          <div class="section-title">Recent payments <a href="#/history">See all</a></div>
+          <div class="section-title">${esc(t("recent"))} <a href="#/history">${esc(t("seeAll"))}</a></div>
           ${TxnList({ txns: txns.slice(0, 7) })}
           <div class="demo-tools">
-            Demo controls (mock world): move the simulated clock forward so deadlines pass.
-            <button class="btn btn--secondary" data-action="skip-day">Skip time +1 day</button>
+            ${esc(t("demoTools"))}
+            <button class="btn btn--secondary" data-action="skip-day">${esc(t("skipDay"))}</button>
           </div>
         </div>
       </div>`;
   }
 
   async function HistoryScreen(_params, isCurrent) {
-    const header = AppHeader({ title: "Payment history", back: true });
-    $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: "Loading payments…" })}</div></div>`;
+    const header = AppHeader({ title: esc(t("history")), back: true });
+    $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: t("loadingPayments") })}</div></div>`;
     let txns;
     try {
       txns = await TransactionRepository.list();
@@ -243,18 +298,18 @@
       <div class="screen">
         ${header}
         <div class="screen__body">${TxnList({ txns })}</div>
-        ${urgent ? MicButton({ txnId: urgent.id, hint: `Ask about ${urgent.payeeName}` }) : ""}
+        ${urgent ? MicButton({ txnId: urgent.id, hint: t("askAbout", { name: urgent.payeeName }) }) : ""}
       </div>`;
   }
 
   async function TxnScreen({ id }, isCurrent) {
-    const header = AppHeader({ title: "Transaction details", back: true });
-    $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: "Loading payment…" })}</div></div>`;
+    const header = AppHeader({ title: esc(t("txnDetails")), back: true });
+    $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: t("loadingPayment") })}</div></div>`;
     let txn;
     try {
       txn = await TransactionRepository.get(id);
     } catch (e) {
-      if (isCurrent()) $app.querySelector(".screen__body").innerHTML = ErrorState({ message: e.status === 404 ? "Payment not found." : e.message });
+      if (isCurrent()) $app.querySelector(".screen__body").innerHTML = ErrorState({ message: e.status === 404 ? t("notFound") : e.message });
       return;
     }
     if (!isCurrent()) return;
@@ -266,18 +321,18 @@
         <div class="screen__body">
           <div class="card txn-hero">
             <span class="txn-hero__icon txn-hero__icon--${esc(txn.status)}">${icon}</span>
-            <p class="txn-hero__headline">${esc(incoming ? "Money received" : HEADLINE[txn.status])}</p>
+            <p class="txn-hero__headline">${esc(incoming ? t("moneyReceived") : HEADLINE[txn.status])}</p>
             <div class="txn-hero__amount">${esc(formatPaise(txn.amountPaise))}</div>
-            <p class="txn-hero__payee">${incoming ? "from" : "to"} <strong>${esc(txn.payeeName)}</strong></p>
+            <p class="txn-hero__payee">${esc(incoming ? t("from") : t("to"))} <strong>${esc(txn.payeeName)}</strong></p>
           </div>
           ${txn.case && txn.case.statusLine ? `<div class="case-line">${Icon.info}<span>${esc(txn.case.statusLine)}</span></div>` : ""}
           <div class="card">
-            ${KeyValue({ k: incoming ? "From UPI ID" : "To UPI ID", v: txn.payeeVpa })}
-            ${KeyValue({ k: "Date & time", v: formatFull(txn.timestamp) })}
-            ${KeyValue({ k: "UPI Ref No.", v: txn.upiRef })}
-            ${KeyValue({ k: "Paid via", v: txn.railLabel })}
-            ${KeyValue({ k: "Note", v: txn.note })}
-            ${KeyValue({ k: "Reason", v: txn.failureReason })}
+            ${KeyValue({ k: incoming ? t("fromUpi") : t("toUpi"), v: txn.payeeVpa })}
+            ${KeyValue({ k: t("dateTime"), v: formatFull(txn.timestamp) })}
+            ${KeyValue({ k: t("upiRef"), v: txn.upiRef })}
+            ${KeyValue({ k: t("paidVia"), v: txn.railLabel })}
+            ${KeyValue({ k: t("note"), v: txn.note })}
+            ${KeyValue({ k: t("reason"), v: txn.failureReason })}
           </div>
         </div>
         ${needsHelp(txn) ? MicButton({ txnId: txn.id, hint: MIC_HINT[txn.status] }) : ""}
@@ -287,12 +342,8 @@
   /** VoiceBar: replaces the composer during a hands-free conversation.
    *  props: { phase: "listening" | "thinking" | "speaking", live: string } */
   function VoiceBar({ phase, live }) {
-    const status = {
-      listening: "Listening…",
-      thinking: "Thinking…",
-      speaking: "Speaking… tap the orb to interrupt",
-    }[phase] || "";
-    const orbLabel = phase === "speaking" ? "Interrupt and speak" : phase === "listening" ? "Done speaking, send now" : "Working";
+    const status = { listening: t("listening"), thinking: t("thinking"), speaking: t("speaking") }[phase] || "";
+    const orbLabel = esc(phase === "speaking" ? t("orbInterrupt") : phase === "listening" ? t("orbSend") : t("working"));
     return `
       <div class="voicebar voicebar--${esc(phase)}" role="group" aria-label="Voice conversation">
         <button type="button" class="orb orb--small" data-action="orb" data-orb aria-label="${orbLabel}" ${phase === "thinking" ? "disabled" : ""}>
@@ -302,28 +353,28 @@
           <div class="voicebar__status">${status}</div>
           <div class="voicebar__live" data-live>${esc(live)}</div>
         </div>
-        <button type="button" class="icon-btn icon-btn--ghost" data-action="keyboard" aria-label="Type instead">${Icon.keyboard}</button>
-        <button type="button" class="icon-btn icon-btn--ghost" data-action="end-voice" aria-label="End voice conversation">${Icon.close}</button>
+        <button type="button" class="icon-btn icon-btn--ghost" data-action="keyboard" aria-label="${esc(t("typeInstead"))}">${Icon.keyboard}</button>
+        <button type="button" class="icon-btn icon-btn--ghost" data-action="end-voice" aria-label="${esc(t("endVoice"))}">${Icon.close}</button>
       </div>`;
   }
 
   async function AgentScreen({ id: txnId }, isCurrent) {
     const health = await ConfigRepository.health();
     const voice = !!(health.stt && Voice.supported);
-    const subtitle = `About this payment only${voice ? "" : " · text mode"}`;
+    const subtitle = `${t("aboutPayment")}${voice ? "" : ` · ${t("textMode")}`}`;
     const headerFor = (muted) => AppHeader({
       title: esc(BRAND.assistantName), subtitle, back: true,
       right: health.tts
-        ? `<button class="app-header__back" data-action="mute" aria-pressed="${muted}" aria-label="${muted ? "Unmute replies" : "Mute replies"}">${muted ? Icon.speakerOff : Icon.speaker}</button>`
+        ? `<button class="app-header__back" data-action="mute" aria-pressed="${muted}" aria-label="${esc(muted ? t("unmute") : t("mute"))}">${muted ? Icon.speakerOff : Icon.speaker}</button>`
         : "",
     });
     $app.innerHTML = `<div class="screen screen--chat">${headerFor(Prefs.muted)}<div class="chat">${ThinkingDots()}</div>${Composer({ disabled: true, voice })}</div>`;
 
-    // Arrived straight from a payment that just failed: the agent speaks first and offers help.
-    const offerHelp = PendingHelp.take(txnId);
+    // Arrived straight from a payment that just failed: the agents' investigation plays first.
+    const investigate = PendingInvestigation.take(txnId);
     let opened;
     try {
-      opened = await AgentRepository.openCase(txnId, { offerHelp, lang: Prefs.lastLang });
+      opened = await AgentRepository.openCase(txnId, { investigate });
     } catch (e) {
       if (isCurrent()) $app.querySelector(".chat").innerHTML = ErrorState({ message: e.message });
       return;
@@ -334,6 +385,8 @@
       caseId: opened.case.id, card: opened.case.card, messages: opened.messages,
       busy: false, pending: null, error: null, notice: null, muted: Prefs.muted,
       revealing: null, // { id, tokens, shown }: the newest reply, revealed in step with its voice
+      inv: null, // { msgId, agent, lines, done }: the live investigation animation
+      held: new Set(), // message ids not shown yet (the conclusion, until the agents finish)
     };
     // Hands-free conversation (Siri-style): listen -> reply is spoken -> listen again, until the
     // user is silent, says thanks, taps stop, or the reply ends the conversation.
@@ -343,15 +396,19 @@
     function paint() {
       if (!isCurrent()) return;
       const rev = state.revealing;
-      const lastAgent = state.messages.map((m) => m.role).lastIndexOf("agent");
-      const lastIsAgent = lastAgent === state.messages.length - 1;
-      const showChips = !state.pending && !rev; // follow-up chips only once the reply has finished
-      const body = state.messages.map((m, i) => {
+      const shown = state.messages.filter((m) => !state.held.has(m.id));
+      const lastAgent = shown.map((m) => m.role).lastIndexOf("agent");
+      const lastIsAgent = lastAgent === shown.length - 1;
+      const investigating = !!(state.inv && !state.inv.done);
+      const showChips = !state.pending && !rev && !investigating; // chips only once the reply has finished
+      const body = shown.map((m, i) => {
+        const inv = (m.actions || []).find((a) => a.type === "INVESTIGATION");
+        const panel = inv ? InvestigationPanel({ agents: inv.agents, progress: state.inv && state.inv.msgId === m.id ? state.inv : null }) : "";
         if (rev && m.id === rev.id) {
           // not started speaking yet -> "thinking" dots; then the words appear as they are spoken
-          return rev.shown === 0 ? ThinkingDots() : ChatBubble({ message: m, shownText: rev.tokens.slice(0, rev.shown).join("") });
+          return (rev.shown === 0 ? ThinkingDots() : ChatBubble({ message: m, shownText: rev.tokens.slice(0, rev.shown).join("") })) + panel;
         }
-        return ChatBubble({ message: m }) +
+        return ChatBubble({ message: m }) + panel +
           (i === lastAgent && lastIsAgent && showChips ? Chips({ chips: m.chips, disabled: state.busy }) : "");
       }).join("");
       const liveBubble = convo.active && convo.phase === "listening" && convo.live
@@ -372,7 +429,7 @@
           </div>
           ${state.error ? `<div class="error-line" role="alert">${esc(state.error)}</div>` : ""}
           ${state.notice && !state.error ? `<div class="notice-line">${esc(state.notice)}</div>` : ""}
-          ${convo.active ? VoiceBar({ phase: convo.phase, live: convo.live }) : Composer({ disabled: state.busy, voice })}
+          ${convo.active ? VoiceBar({ phase: convo.phase, live: convo.live }) : Composer({ disabled: state.busy || investigating, voice })}
         </div>`;
       scrollChat();
       const newInput = $app.querySelector(".composer__input");
@@ -425,10 +482,10 @@
 
     function voiceError(e) {
       const detail = e && e.detail;
-      if (e && e.status === 422 && detail === "no_speech") return "I didn't catch that. Please say it again, or type.";
-      if (e && e.status === 422 && String(detail).startsWith("stt_disabled")) return "Voice is off on the server. Please type.";
-      if (e && e.status === 502) return "Voice is unavailable right now. Please type your question.";
-      return `Couldn't send: ${e ? e.message : "unknown error"}`;
+      if (e && e.status === 422 && detail === "no_speech") return t("didntCatch");
+      if (e && e.status === 422 && String(detail).startsWith("stt_disabled")) return t("voiceOff");
+      if (e && e.status === 502) return t("voiceUnavailable");
+      return t("couldntSend", { msg: e ? e.message : "?" });
     }
 
     /** One turn. input: { text } | { chipId, label } | { audio: {blob, liveText} }.
@@ -467,7 +524,7 @@
         return { res, playing };
       } catch (e) {
         const noSpeech = !!(audio && e && e.status === 422 && e.detail === "no_speech");
-        if (!(noSpeech && quietNoSpeech)) state.error = audio ? voiceError(e) : `Couldn't send: ${e.message}`;
+        if (!(noSpeech && quietNoSpeech)) state.error = audio ? voiceError(e) : t("couldntSend", { msg: e.message });
         return noSpeech ? { noSpeech: true } : null;
       } finally {
         state.busy = false;
@@ -509,7 +566,7 @@
           if (convo.chip) { input = convo.chip; convo.chip = null; } // a chip was tapped while listening
           else if (!r) break;
           else if (r.error) { state.error = r.error; break; }
-          else if (r.timeout) { state.notice = "Voice paused. Tap the mic when you want to talk again."; break; }
+          else if (r.timeout) { state.notice = t("voicePaused"); break; }
           else input = { audio: r };
         }
         convo.phase = "thinking";
@@ -518,8 +575,8 @@
         if (out && out.noSpeech) {
           // Noise, not words: keep the conversation going instead of stopping.
           misses += 1;
-          if (misses >= VOICE.maxMisses) { state.notice = "I couldn't hear you clearly. Tap the mic to try again, or type."; break; }
-          state.notice = "Sorry, I didn't catch that. Please say it again.";
+          if (misses >= VOICE.maxMisses) { state.notice = t("couldntHear"); break; }
+          state.notice = t("sayAgain");
           continue;
         }
         if (!out || !convo.active || !isCurrent()) break;
@@ -560,7 +617,7 @@
       if (example) return send({ text: example.dataset.example });
       if (ev.target.closest('[data-action="mic"]')) {
         if (!voice) {
-          state.error = health.stt ? "This browser can't record audio. Please type." : "Voice is off on the server. Please type.";
+          state.error = health.stt ? t("cantRecord") : t("voiceOff");
           paint();
           return;
         }
@@ -589,10 +646,34 @@
       if (ev.target.closest('[data-action="back"]')) goBack(`#/txn/${encodeURIComponent(txnId)}`);
     };
 
-    if (opened.offer) {
-      // Speak the offer ("…didn't go through. Shall I check what happened?"), then listen hands-free.
-      // The answer goes through the normal turn, so everything after this works as before.
-      presentReply(opened.offer, opened.offer.audio_url).then(() => {
+    /** The agents appear one by one, each "thinking", then their lines (all from the backend). */
+    async function playInvestigation(msgId, agents) {
+      state.inv = { msgId, agent: 0, lines: 0, done: false };
+      for (let i = 0; i < agents.length; i++) {
+        state.inv.agent = i;
+        state.inv.lines = 0;
+        paint();
+        await sleep(VOICE.agentThinkMs);
+        for (let j = 1; j <= agents[i].lines.length; j++) {
+          if (!isCurrent()) return;
+          state.inv.lines = j;
+          paint();
+          await sleep(VOICE.agentLineMs);
+        }
+      }
+      state.inv.done = true;
+      paint();
+    }
+
+    if (opened.investigation) {
+      // "Your payment failed. I'm running a detailed investigation." (spoken) while the agents work,
+      // then the conclusion (spoken), then the normal hands-free conversation.
+      const { intro, agents, conclusion } = opened.investigation;
+      state.held.add(conclusion.id);
+      Promise.all([presentReply(intro, intro.audio_url), playInvestigation(intro.id, agents)]).then(async () => {
+        if (!isCurrent()) return;
+        state.held.delete(conclusion.id);
+        await presentReply(conclusion, conclusion.audio_url);
         if (isCurrent() && voice && !convo.active && !state.busy) converse();
       });
       return;
@@ -607,9 +688,9 @@
 
   async function PayScreen({ caseId }, isCurrent) {
     const payload = PendingPayments.get(caseId);
-    const header = AppHeader({ title: "Pay", subtitle: "Retry of a failed payment", back: true });
+    const header = AppHeader({ title: esc(t("pay")), subtitle: t("retrySubtitle"), back: true });
     if (!payload) {
-      $app.innerHTML = `<div class="screen">${header}<div class="screen__body"><div class="state">No confirmed retry for this payment. Go back to the chat and ask again.</div></div></div>`;
+      $app.innerHTML = `<div class="screen">${header}<div class="screen__body"><div class="state">${esc(t("noRetry"))}</div></div></div>`;
       return;
     }
     // Payee and amount come only from the backend's retry payload (Paytm record), never from user input.
@@ -625,12 +706,12 @@
             <p class="muted">${esc(payload.note || "")}</p>
           </div>
           <form class="card" data-form="pin" autocomplete="off">
-            <label class="muted" for="pin">Enter UPI PIN (mock, any 4–6 digits)</label>
+            <label class="muted" for="pin">${esc(t("enterPin"))}</label>
             <input id="pin" class="pin-input" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required>
             <div class="error-line" data-error></div>
-            <button class="btn" type="submit">Pay ${esc(formatPaise(payload.amount_paise))}</button>
+            <button class="btn" type="submit">${esc(t("payAmount", { amount: formatPaise(payload.amount_paise) }))}</button>
           </form>
-          <p class="muted center">${esc(BRAND.prototypeLabel)}</p>
+          <p class="muted center">${esc(t("prototype"))}</p>
         </div>
       </div>`;
     $app.querySelector("#pin").focus();
@@ -640,7 +721,7 @@
       const form = ev.target;
       const pin = form.elements.pin.value;
       if (!/^\d{4,6}$/.test(pin)) {
-        form.querySelector("[data-error]").textContent = "PIN must be 4 to 6 digits.";
+        form.querySelector("[data-error]").textContent = t("pinDigits");
         return;
       }
       form.querySelector("button").disabled = true;
@@ -650,16 +731,16 @@
         if (!isCurrent()) return;
         $app.innerHTML = `
           <div class="screen">
-            ${AppHeader({ title: "Payment successful" })}
+            ${AppHeader({ title: esc(t("hSUCCESS")) })}
             <div class="screen__body">
               <div class="card txn-hero">
                 <span class="txn-hero__icon txn-hero__icon--SUCCESS">${Icon.check}</span>
-                <p class="txn-hero__headline">Paid</p>
+                <p class="txn-hero__headline">${esc(t("paid"))}</p>
                 <div class="txn-hero__amount">${esc(formatPaise(res.transaction.amountPaise))}</div>
-                <p class="txn-hero__payee">to <strong>${esc(res.transaction.payeeName)}</strong></p>
+                <p class="txn-hero__payee">${esc(t("to"))} <strong>${esc(res.transaction.payeeName)}</strong></p>
               </div>
-              <a class="btn" href="#/agent/${encodeURIComponent(payload.retry_of_txn_id)}">Back to chat</a>
-              <a class="btn btn--secondary" href="#/">Home</a>
+              <a class="btn" href="#/agent/${encodeURIComponent(payload.retry_of_txn_id)}">${esc(t("backToChat"))}</a>
+              <a class="btn btn--secondary" href="#/">${esc(t("home"))}</a>
             </div>
           </div>`;
       } catch (e) {
@@ -675,10 +756,10 @@
   async function ScanScreen(_params, isCurrent) {
     $app.innerHTML = `
       <div class="screen screen--scan">
-        ${AppHeader({ title: "Scan any QR", subtitle: "Demo: a merchant QR is scanned for you", back: true })}
+        ${AppHeader({ title: esc(t("scanTitle")), subtitle: t("scanSub"), back: true })}
         <div class="scanner">
           <div class="scanner__frame" aria-hidden="true"><span class="scanner__line"></span></div>
-          <p class="scanner__hint" data-scan-status>Point your camera at a QR code</p>
+          <p class="scanner__hint" data-scan-status>${esc(t("pointCamera"))}</p>
         </div>
       </div>`;
     await new Promise((r) => setTimeout(r, 1600));
@@ -689,7 +770,7 @@
       PendingScan.set(qr);
       location.replace("#/send");
     } catch (e) {
-      if (isCurrent()) $app.querySelector("[data-scan-status]").textContent = `Couldn't scan: ${e.message}`;
+      if (isCurrent()) $app.querySelector("[data-scan-status]").textContent = t("couldntScan", { msg: e.message });
     }
   }
 
@@ -702,17 +783,17 @@
         <span class="txn-hero__icon txn-hero__icon--${esc(txn.status)}">${icon}</span>
         <p class="txn-hero__headline">${esc(HEADLINE[txn.status])}</p>
         <div class="txn-hero__amount">${esc(formatPaise(txn.amountPaise))}</div>
-        <p class="txn-hero__payee">to <strong>${esc(txn.payeeName)}</strong></p>
+        <p class="txn-hero__payee">${esc(t("to"))} <strong>${esc(txn.payeeName)}</strong></p>
         ${failed && txn.failureReason ? `<p class="muted">${esc(txn.failureReason)}</p>` : ""}
       </div>
-      ${failed ? `<div class="case-line">${Icon.info}<span>${esc(BRAND.assistantName)} is opening to help you…</span></div>` : ""}`;
+      ${failed ? `<div class="case-line">${Icon.info}<span>${esc(t("investigating", { assistant: BRAND.assistantName }))}</span></div>` : ""}`;
   }
 
   /** Pay a scanned merchant: amount -> PIN -> result. In the demo the payment fails on purpose
-   *  (backend DEMO_SCAN_PAY_FAILURE), and the AI chat opens with the agent offering help. */
+   *  (backend DEMO_SCAN_PAY_FAILURE), and the AI chat opens with the agents' investigation. */
   async function SendScreen(_params, isCurrent) {
     const qr = PendingScan.get();
-    const header = AppHeader({ title: "Pay", subtitle: "Scanned QR", back: true });
+    const header = AppHeader({ title: esc(t("pay")), subtitle: t("scannedQr"), back: true });
     if (!qr) { location.replace("#/scan"); return; }
     const step = { name: "amount", paise: 0, note: "" };
 
@@ -721,24 +802,24 @@
       const payee = `
         <div class="card payee-card">
           <span class="avatar">${initials(qr.payee_name)}</span>
-          <div><div class="payee-card__name">${esc(qr.payee_name)}</div><div class="muted">${esc(qr.payee_vpa)} · from QR</div></div>
+          <div><div class="payee-card__name">${esc(qr.payee_name)}</div><div class="muted">${esc(qr.payee_vpa)} · ${esc(t("fromQr"))}</div></div>
         </div>`;
       const body = step.name === "amount" ? `
         <form class="card" data-form="amount" autocomplete="off">
-          <label class="muted" for="amount">Amount</label>
+          <label class="muted" for="amount">${esc(t("amount"))}</label>
           <div class="amount-field"><span>₹</span><input id="amount" class="amount-input" name="amount" inputmode="decimal" placeholder="0" required></div>
-          <input class="composer__input note-input" name="note" placeholder="Add a note (optional)" maxlength="60">
+          <input class="composer__input note-input" name="note" placeholder="${esc(t("addNote"))}" maxlength="60">
           <div class="error-line" data-error>${esc(error || "")}</div>
-          <button class="btn" type="submit">Proceed to pay</button>
+          <button class="btn" type="submit">${esc(t("proceed"))}</button>
         </form>` : `
         <form class="card" data-form="pin" autocomplete="off">
-          <p class="muted center">Paying <strong>${esc(formatPaise(step.paise))}</strong> to ${esc(qr.payee_name)}</p>
-          <label class="muted" for="pin">Enter UPI PIN (mock, any 4–6 digits)</label>
+          <p class="muted center">${esc(t("payingTo", { amount: formatPaise(step.paise), payee: qr.payee_name }))}</p>
+          <label class="muted" for="pin">${esc(t("enterPin"))}</label>
           <input id="pin" class="pin-input" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required>
           <div class="error-line" data-error>${esc(error || "")}</div>
-          <button class="btn" type="submit">Pay ${esc(formatPaise(step.paise))}</button>
+          <button class="btn" type="submit">${esc(t("payAmount", { amount: formatPaise(step.paise) }))}</button>
         </form>`;
-      $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${payee}${body}<p class="muted center">${esc(BRAND.prototypeLabel)}</p></div></div>`;
+      $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${payee}${body}<p class="muted center">${esc(t("prototype"))}</p></div></div>`;
       const first = $app.querySelector("#amount, #pin");
       if (first) first.focus();
     }
@@ -750,7 +831,7 @@
       if (form.matches('[data-form="amount"]')) {
         const rupees = Number(String(form.elements.amount.value).replace(/[,\s₹]/g, ""));
         if (!(rupees > 0) || rupees > 100000 || !/^\d+(\.\d{1,2})?$/.test(String(rupees))) {
-          return paint("Enter an amount between ₹1 and ₹1,00,000.");
+          return paint(t("amountRange"));
         }
         step.paise = Math.round(rupees * 100);
         step.note = form.elements.note.value.trim();
@@ -758,14 +839,14 @@
         return paint();
       }
       const pin = form.elements.pin.value;
-      if (!/^\d{4,6}$/.test(pin)) return paint("PIN must be 4 to 6 digits.");
-      $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: `Paying ${formatPaise(step.paise)} to ${qr.payee_name}…` })}</div></div>`;
+      if (!/^\d{4,6}$/.test(pin)) return paint(t("pinDigits"));
+      $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: t("paying", { amount: formatPaise(step.paise), payee: qr.payee_name }) })}</div></div>`;
       let res;
       try {
         [res] = await Promise.all([
           TransactionRepository.pay({ payee_vpa: qr.payee_vpa, payee_name: qr.payee_name, amount_paise: step.paise,
             note: step.note || null, pin, origin: "scan" }),
-          new Promise((r) => setTimeout(r, 1200)), // a real payment takes a moment
+          sleep(1200), // a real payment takes a moment
         ]);
       } catch (e) {
         step.name = "pin";
@@ -774,13 +855,13 @@
       if (!isCurrent()) return;
       PendingScan.clear();
       const txn = res.transaction;
-      $app.innerHTML = `<div class="screen">${AppHeader({ title: HEADLINE[txn.status] })}<div class="screen__body">${PaymentResult({ txn })}
-        ${txn.status === "SUCCESS" ? '<a class="btn" href="#/">Home</a>' : ""}</div></div>`;
+      $app.innerHTML = `<div class="screen">${AppHeader({ title: esc(HEADLINE[txn.status]) })}<div class="screen__body">${PaymentResult({ txn })}
+        ${txn.status === "SUCCESS" ? `<a class="btn" href="#/">${esc(t("home"))}</a>` : ""}</div></div>`;
       if (needsHelp(txn)) {
-        // The failure stays on screen for a moment, then the agent opens and offers help by itself.
-        await new Promise((r) => setTimeout(r, 1800));
+        // The failure stays on screen for a moment, then the agent opens and investigates by itself.
+        await sleep(1800);
         if (!isCurrent()) return;
-        PendingHelp.set(txn.id);
+        PendingInvestigation.set(txn.id);
         location.replace(`#/agent/${encodeURIComponent(txn.id)}`);
       }
     };
@@ -894,6 +975,18 @@
       }
     }
   }
+
+  // Language toggle (in every header). Capture phase: screens replace $app.onclick.
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-lang]");
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (btn.dataset.lang !== getUiLang()) {
+      setUiLang(btn.dataset.lang);
+      route(); // repaint in the new language; the agent answers in it from now on
+    }
+  }, true);
 
   window.addEventListener("hashchange", route);
   route();

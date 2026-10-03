@@ -23,18 +23,22 @@ In the phone, the **Anil Kumar ₹1** payment (11:19 am, "Bad Network") is the s
 
 ## 1b. The main flow: the payment fails and the agent speaks first
 
-Your mentor's point: users shouldn't have to discover a button. So now the agent comes to them.
+Your mentor's point: users shouldn't have to discover a button. So now the agent comes to them and shows its work.
 
 | Do | Say / tap | You'll see |
 |---|---|---|
 | Phone: tap **Scan & Pay** on Home | | The viewfinder; a demo merchant QR (e.g. Kaveri Restaurant) is "scanned" |
 | Enter an amount (e.g. 640), then **Proceed to pay**, then any PIN | | "Paying…", then **Payment failed**: "Amount debited but not credited to the merchant" |
-| Wait about 2 s | | The chat opens and **the agent speaks first**: "Your ₹640 payment to Kaveri Restaurant didn't go through. Would you like me to check what happened to your money?". The voice bar shows **Listening…** |
-| Answer | "haan, kya hua?" / "yes" / "paise kat gaye kya?" | The S2-style answer: debited, don't pay again, comes back by the date. The conversation continues hands-free, as before. "No thanks" ends it. |
+| Wait about 2 s | | The chat opens and **the agent speaks first**: "Your ₹640 payment to Kaveri Restaurant failed. I'm running a detailed investigation." |
+| Watch (about 10 s) | | **Six agents appear one by one**, each "thinking" and then showing what it found. Network: NPCI says failed. Bank: ₹640 taken, Kaveri not credited. Diagnosis: F4. Rules: rule 5, wait, deadline. Safety: re-fetched, nothing changed. Follow-up: watching the deadline; complaint + ₹100/day if late. The console's activity panel shows the same work. |
+| Listen | | The spoken **conclusion**: "Investigation complete. Yes, ₹640 was taken… it should come back by …". Then the mic listens hands-free. |
+| Follow up | "agar wapas nahi aaya to?" / tap a chip | The normal conversation |
+
+**Language:** tap **EN / हिं / मरा** in any header *before* paying. Everything, including the agents and the spoken conclusion, comes out in that language. You can switch mid-chat, and the next answers follow.
 
 The way it fails is set by `DEMO_SCAN_PAY_FAILURE` in `backend/.env`: `debited` (default), `declined`, `bank_down`, `pending` or `off`. Restart the server after changing it. Skip time +1 day twice and this payment gets the automatic dispute too.
 
-*(Tests: `test_scan_pay_fails_on_purpose_and_case_is_prepared`, `test_agent_offers_help_first_then_answers`, `test_yes_to_the_offer_never_confirms_a_retry`.)*
+*(Tests: `test_scan_pay_fails_on_purpose_and_case_is_prepared`, `test_failed_payment_opens_with_six_agent_investigation_in_ui_language`, `test_investigation_safety_agent_reports_a_live_change`, `test_ui_language_decides_the_reply_language`.)*
 
 ## 2. S1: safe retry (Sharma Medicals ₹350)
 

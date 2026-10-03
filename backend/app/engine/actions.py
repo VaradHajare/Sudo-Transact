@@ -21,6 +21,8 @@ STATE_FOR = {
     Action.CLOSE: "CLOSED", Action.ESCALATE: "ESCALATED",
 }
 TERMINAL_STATES = {"CLOSED", "RESOLVED", "ESCALATED", "REVIEWED"}
+# Triggers where the user is reading the agent's answer right now, so no separate update message.
+SILENT_TRIGGERS = {"USER_TURN", "USER_INVESTIGATE"}
 
 
 def save_evidence(db: Session, case: Case, b: EvidenceBundle, now: datetime) -> None:
@@ -206,5 +208,5 @@ def apply_decision(db: Session, sources: Sources, settings: Settings, case: Case
 
     case.state = STATE_FOR[dec.action]
     db.flush()
-    if dec.notify and case.state != prev_state and trigger != "USER_TURN":
+    if dec.notify and case.state != prev_state and trigger not in SILENT_TRIGGERS:
         notify(db, case, now)
