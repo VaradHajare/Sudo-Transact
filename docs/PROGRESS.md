@@ -75,6 +75,10 @@
     - `late_debit` makes the S1 "yes" hit the live re-check.
   - Both have API tests and console buttons.
 
+- **Spoken language wins over the UI language for voice replies** (owner choice, 2026-10-03, after Marathi mid-chat got an English answer on the phone).
+  - What happened: Sarvam had identified `mr-IN` with probability 1.0, but the EN toggle won.
+  - Now a voice turn with language-ID probability ≥ `SPOKEN_LANG_MIN_PROBABILITY` (0.8) is answered in the spoken language; otherwise the UI language applies.
+  - Tests for both cases.
 - **Phone app (Expo SDK 57, Android): `mobile/`** (owner request, 2026-10-03). A WebView shell around `web/`, so the phone shows exactly the same app.
   - **Native side:**
     - a server-address screen, remembered in AsyncStorage;

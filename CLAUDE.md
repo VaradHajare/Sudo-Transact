@@ -13,7 +13,10 @@ Voice-first AI support teammate inside Paytm. It resolves failed or pending UPI 
    - Then the spoken conclusion, then the normal hands-free follow-up.
    - Every agent line comes from real records (`app/conversation/investigation.py`). Never invent agent output.
    - The mic button on failed payments stays.
-4. **The UI language decides the reply language.** The app has an EN / हिं / मरा toggle in every header. It sends `X-UI-Lang`, and the agent answers in that language whatever language the user speaks. Status lines, next actions and failure reasons come back in it too. Without the header, replies follow the detected language.
+4. **Reply language: what the user clearly spoke, else the UI language.**
+   - The app has an EN / हिं / मरा toggle in every header. It sends `X-UI-Lang`, and screens, status lines, the investigation and replies to typed text follow it.
+   - A voice turn whose spoken language Sarvam identifies with at least `SPOKEN_LANG_MIN_PROBABILITY` (0.8) is answered in that spoken language. Switching to Marathi mid-chat gets Marathi; the toggle does not change.
+   - Without the header, replies follow the detected language.
 
 ## Repo layout
 ```

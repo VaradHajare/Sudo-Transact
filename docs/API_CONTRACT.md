@@ -318,7 +318,7 @@ This returns `201 {"transaction": {...status "SUCCESS"...}, "case": {... "state"
 ## UI language (team decision 4)
 
 The app sends `X-UI-Lang: en | hi | mr` on every `/v1` call. With it:
-- **Replies:** `/v1/voice/turn` answers in that language, whatever language the user spoke.
+- **Replies:** `/v1/voice/turn` answers in that language. One exception: a voice turn whose spoken language Sarvam identifies with at least `SPOKEN_LANG_MIN_PROBABILITY` (default 0.8) is answered in the spoken language (e.g. Marathi speech with an English UI gets Marathi).
 - **Labels:** `statusLine`, `next_action`/`nextAction` and `failureReason` come back in that language.
 
 Without the header, replies follow the detected language and labels stay English.

@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     STT_ENABLED: bool = False
     TTS_ENABLED: bool = False
     STT_MAX_AUDIO_BYTES: int = 10 * 1024 * 1024
+    # A reply follows the language the user SPOKE (over the app's UI language) when Sarvam's
+    # language ID is at least this confident (CLAUDE.md team decision 4).
+    SPOKEN_LANG_MIN_PROBABILITY: float = 0.8
     MEDIA_DIR: str = str(BACKEND_DIR / "media")  # synthesized reply audio (not user audio)
 
     # decision rules (spec 8.2 rules config)

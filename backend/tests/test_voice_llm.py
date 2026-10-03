@@ -322,3 +322,19 @@ def test_delete_my_data_removes_reply_audio(api, vsettings):
     assert files
     api.delete("/v1/me/data")
     assert not any(f.exists() for f in files)
+
+
+# ---- reply language: a confident spoken language beats the UI language (team decision 4)
+def test_speaking_marathi_with_english_ui_gets_marathi(api, net):
+    cid = open_case(api, "txn_s2_citymobiles")
+    net.transcript, net.stt_lang = "माझे पैसे कापले का?", "mr-IN"  # language_probability 0.97
+    r = say_audio(api, cid, headers={"X-UI-Lang": "en"}).json()
+    assert r["lang"] == "mr" and "रुपये" in r["speak"]["text"]
+
+
+def test_unsure_spoken_language_falls_back_to_the_ui_language(api, net, vsettings):
+    cid = open_case(api, "txn_s2_citymobiles")
+    vsettings.SPOKEN_LANG_MIN_PROBABILITY = 0.99  # Sarvam says 0.97: not sure enough
+    net.transcript, net.stt_lang = "माझे पैसे कापले का?", "mr-IN"
+    r = say_audio(api, cid, headers={"X-UI-Lang": "en"}).json()
+    assert r["lang"] == "en"

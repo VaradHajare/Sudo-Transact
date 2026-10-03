@@ -87,8 +87,11 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
                 intent = out.intent
                 if not stt:
                     lang = out.language
-    # The app's UI language decides the reply language (the user may still speak any language).
-    lang = i18n.ui_lang() or lang
+    # Reply language: what the user clearly SPOKE wins (switching to Marathi mid-chat gets Marathi);
+    # otherwise the app's UI language; otherwise the detected language (team decision 4).
+    spoken = (stt.lang if stt and stt.lang in templates.LANGS
+              and (stt.language_probability or 0.0) >= settings.SPOKEN_LANG_MIN_PROBABILITY else None)
+    lang = spoken or i18n.ui_lang() or lang
     case.language = lang
 
     # user bubble: what they said, or the chip they tapped

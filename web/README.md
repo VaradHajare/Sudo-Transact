@@ -28,7 +28,7 @@ A phone-width web app for the AI Resolve feature. Plain HTML, CSS and JS: no fra
 ## Language
 - **Toggle:** every header has an **EN / हिं / मरा** toggle (`LangToggle`).
 - **Where the text lives:** all UI text is in `I18N` in `data.js`, read with `t(key, vars)`. Dates and status labels follow the language.
-- **What the backend does with it:** the language is sent as `X-UI-Lang`, and the agent answers in it whatever the user speaks. Status lines and failure reasons come back in it too.
+- **What the backend does with it:** the language is sent as `X-UI-Lang`. The agent answers in it, except that when the user clearly speaks another language, that voice reply follows the spoken language. Status lines and failure reasons come back in it too.
 - **Storage:** the choice is kept in `localStorage`.
 - Hindi and Marathi text needs a native speaker's review.
 
