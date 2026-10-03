@@ -12,9 +12,9 @@ from sqlalchemy.orm import Session
 from app import clock
 from app.config import Settings
 from app.deps import get_app_settings, get_db
-from app.engine.pipeline import sweep_open_cases
 from app.mock.sources import MockEvidenceSource, MockPaymentSource, MockUdir
-from app.models import MockBankLedger, MockMerchantCredit, MockNpciStatus, MockUdirComplaint, Transaction
+from app.models import Job, MockBankLedger, MockMerchantCredit, MockNpciStatus, MockUdirComplaint, Transaction
+from app.scheduler import run_due_jobs
 
 router = APIRouter(prefix="/mock", tags=["mock"])
 
@@ -86,10 +86,22 @@ def set_clock(body: ClockIn, db: Session = Depends(get_db), settings: Settings =
     if seconds < 0:
         raise HTTPException(400, "time only moves forward")
     clock.advance(db, seconds)
-    # Until the step-6 scheduler owns this, a time-skip re-decides open cases right away.
-    swept = sweep_open_cases(db, settings, trigger="CLOCK")
     db.commit()
-    return {**_clock_view(db), "cases_rechecked": swept}
+    # Run the jobs that just became due (same code path as the background worker), so the demo
+    # sees the result immediately instead of on the next poll.
+    jobs_run = run_due_jobs(db, settings)
+    return {**_clock_view(db), "jobs_run": jobs_run}
+
+
+@router.get("/jobs")
+def list_jobs(status: str | None = None, db: Session = Depends(get_db)):
+    q = db.query(Job)
+    if status:
+        q = q.filter(Job.status == status)
+    rows = q.order_by(Job.run_at).all()
+    return {"now": clock.iso_ist(clock.now(db)),
+            "jobs": [{"id": j.id, "kind": j.kind, "case_id": j.case_id, "run_at": clock.iso_ist(j.run_at),
+                      "status": j.status, "attempts": j.attempts, "last_error": j.last_error} for j in rows]}
 
 
 # ------------------------------------------------------------------ inject (change a payment's state)

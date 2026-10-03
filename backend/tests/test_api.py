@@ -91,7 +91,7 @@ def test_s2_hinglish_then_deadline_dispute(api):
 
     # deadline passes -> re-check -> dispute + compensation, user sees it on reopen
     skip = api.post("/mock/clock", json={"advance_days": 2}).json()
-    assert any(x["case_id"] == cid and x["to"] == "DISPUTED" for x in skip["cases_rechecked"])
+    assert any(x["case_id"] == cid and x["kind"] == "SLA_DEADLINE" and x["to"] == "DISPUTED" for x in skip["jobs_run"])
     txns = api.get("/v1/transactions").json()["transactions"]
     assert next(t for t in txns if t["id"] == "txn_s2_citymobiles")["case"]["hasUpdate"] is True
     again = open_case(api, "txn_s2_citymobiles")

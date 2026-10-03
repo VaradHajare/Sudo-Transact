@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.bootstrap import init_database
 from app.config import Settings, get_settings
+from app.scheduler import Worker
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -20,7 +21,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        worker = None
+        if settings.SCHEDULER_ENABLED:
+            worker = Worker(app.state.SessionLocal, settings)
+            worker.start()
+        app.state.worker = worker
         yield
+        if worker:
+            worker.stop()
         app.state.engine.dispose()
 
     app = FastAPI(title="Sudo Transact backend", version="0.1.0", lifespan=lifespan)
@@ -29,7 +37,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/healthz")
     def healthz():
-        return {"ok": True, "llm": settings.LLM_ENABLED, "stt": settings.STT_ENABLED, "tts": settings.TTS_ENABLED}
+        return {"ok": True, "llm": settings.LLM_ENABLED, "stt": settings.STT_ENABLED, "tts": settings.TTS_ENABLED,
+                "scheduler": settings.SCHEDULER_ENABLED}
 
     _include_routers(app, settings)
 

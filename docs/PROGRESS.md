@@ -11,8 +11,9 @@
 
 - **Step 5: web UI.** New phone-width app at `web/` root (`index.html`, `styles.css`, `data.js`, `app.js`, `README.md`) using the colours of `Paytm-Clone-main/` (left untouched). `TransactionRepository` / `AgentRepository` call `/v1` (async). Screens: home, history (badges), transaction details with floating AI mic, AI Resolve chat (text mode: case card, bubbles, chips, update messages), pay + mock PIN for safe retry. Checked in Chrome: S2 (City Mobiles, "paise kat gaye par mila nahi") and the full S1 retry flow.
 
+- **Step 6: scheduler.** `app/scheduler.py`: one in-process worker thread (started with the app, `SCHEDULER_ENABLED`) polls the `jobs` table every `SCHEDULER_POLL_SECONDS`. Jobs: `RECHECK_CASE` (pending / bank-down / 7b), `SLA_DEADLINE` (F4: dispute + compensation via mock UDIR, after a live re-check), `DISPUTE_FOLLOWUP` (daily: catch late reversal and close, or grow compensation by days late). Exclusive claim via conditional UPDATE, retries with backoff, `FAILED` after `JOB_MAX_ATTEMPTS`, stale `RUNNING` jobs re-queued at startup. `/mock/clock` now runs due jobs through the same path (`jobs_run` in the response); `/mock/jobs` lists the queue. Verified on the live server with concurrent API traffic: no SQLite lock errors.
+
 ## Next
-- Step 6: SLA/dispute scheduler: one in-process worker polling the `jobs` table (rows are already written for WAIT decisions); move the time-skip re-decide into it.
 - Step 7: LLM adapter (intent/rephrase with number-check), Sarvam STT/TTS, listening sheet with live transcript.
 - Step 8: simulator + B0/B1/B2 evaluation.
 - Before demo: native-speaker review of Hindi/Marathi templates; verify RBI TAT/compensation values.

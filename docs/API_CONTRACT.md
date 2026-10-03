@@ -9,6 +9,7 @@ Backend for the AI Resolve feature. Consumers: the web prototype in `web/` today
 - **Errors:** `{"detail": "..."}` with `401` (no or bad token), `404` (not found or not yours), `409` (the rules don't allow it), or `422` (bad input).
 - **Field casing:** transactions use camelCase (the UI's shape). Cases and turns use snake_case. The `card` object is camelCase so it can be rendered like a transaction.
 - **Mocked:** all of it (Paytm records, NPCI, bank, merchant, UDIR). LLM, STT and TTS are off: replies come from templates, and `audio_url` is `null`.
+- **Background work:** a scheduler raises disputes, grows compensation and closes cases on late refunds even when the app is closed. The client learns about it from `case.hasUpdate` in history and a `kind: "update"` message in that case's chat. Nothing is pushed.
 
 **The rule for clients:** never decide anything from the transaction's own fields. In particular, `debited` is only the Paytm record's view, so it must not decide whether a retry is safe. Show `case.status_line`, `speak.text`, `chips` and `actions` from the backend. A retry can only happen through the `OPEN_PAY_SCREEN` action.
 
@@ -299,7 +300,8 @@ This returns `201 {"transaction": {...status "SUCCESS"...}, "case": {... "state"
 | GET | `/mock/merchant/credit?upi_ref=` | `{credited, credit_count, credited_at}` |
 | POST | `/mock/npci/udir/dispute` | `{upi_ref, kind, amount_paise}` → `{ref}` |
 | GET | `/mock/npci/udir/disputes` | Raised complaints |
-| GET / POST | `/mock/clock` | POST `{"advance_minutes"\|"advance_hours"\|"advance_days": n}` or `{"reset": true}`. Every open case is re-decided right away: `cases_rechecked: [{case_id, from, to, decision, rule}]` |
+| GET / POST | `/mock/clock` | POST `{"advance_minutes"\|"advance_hours"\|"advance_days": n}` or `{"reset": true}`. Jobs that become due run right away (same code as the background worker): `jobs_run: [{job_id, kind, case_id, txn_id, from, to, decision, rule, status}]` |
+| GET | `/mock/jobs?status=QUEUED` | The scheduler's `jobs` table: `RECHECK_CASE`, `SLA_DEADLINE`, `DISPUTE_FOLLOWUP` |
 | POST | `/mock/inject` | `{"txn_id": "…", "npci"?: {status, final, reason_code}, "ledger"?: {state, debit_count}, "merchant"?: {credited}}` changes the outside world. The next action's live re-check catches it. |
 
 ## Seeded demo data (`backend/scripts/reset_db.py`)

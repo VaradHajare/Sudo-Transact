@@ -3,7 +3,7 @@
 Only the decision engine chooses the action; this module executes it idempotently.
 """
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -48,6 +48,7 @@ def raise_dispute(db: Session, sources: Sources, settings: Settings, case: Case,
                   dec: Decision, now: datetime) -> None:
     existing = db.query(Dispute).filter(Dispute.case_id == case.id, Dispute.kind == dec.dispute_kind).one_or_none()
     if existing:
+        _update_compensation(db, settings, case, dec, now)
         return
     amount = b.ledger.amount_paise or b.txn.amount_paise
     ref = sources.disputes.raise_dispute(b.txn.upi_ref, dec.dispute_kind, amount, now)
@@ -60,6 +61,20 @@ def raise_dispute(db: Session, sources: Sources, settings: Settings, case: Case,
                   {"days_late": dec.days_late, "amount_paise": comp,
                    "per_day_paise": settings.compensation_per_day_paise})
     db.flush()
+
+
+def _update_compensation(db: Session, settings: Settings, case: Case, dec: Decision, now: datetime) -> None:
+    """Still not reversed after the dispute: compensation keeps growing per day late (spec 6.7)."""
+    if not dec.compensation:
+        return
+    comp = db.query(CompensationClaim).filter(CompensationClaim.case_id == case.id).one_or_none()
+    if comp is None or dec.days_late <= comp.days_late:
+        return
+    before = comp.amount_paise
+    comp.days_late = dec.days_late
+    comp.amount_paise = settings.compensation_per_day_paise * dec.days_late
+    audit.log(db, case.id, now, "COMPENSATION_UPDATED",
+              {"days_late": comp.days_late, "amount_paise": comp.amount_paise, "was_paise": before})
 
 
 RECOMMENDATIONS = {
@@ -181,6 +196,7 @@ def apply_decision(db: Session, sources: Sources, settings: Settings, case: Case
             audit.log(db, case.id, now, "RETRY_OFFERED", {})
     if dec.action == Action.RAISE_DISPUTE:
         raise_dispute(db, sources, settings, case, b, dec, now)
+        schedule_job(db, "DISPUTE_FOLLOWUP", case.id, now + timedelta(hours=settings.DISPUTE_FOLLOWUP_HOURS), now)
     if dec.action == Action.CLOSE:
         case.closed_at = now
 

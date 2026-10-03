@@ -17,6 +17,7 @@ def settings(tmp_path) -> Settings:
         SEED_DEMO_DATA=False,
         LLM_ENABLED=False, STT_ENABLED=False, TTS_ENABLED=False,
         SESSION_TOKEN_SECRET="test-secret",
+        SCHEDULER_ENABLED=False,  # tests drive jobs explicitly; test_scheduler starts the thread itself
     )
 
 

@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     REPEAT_CLAIM_THRESHOLD: int = 3  # claims in the window that make a user look suspicious
     REPEAT_CLAIM_WINDOW_DAYS: int = 30
 
+    # background scheduler (jobs table, one in-process worker)
+    SCHEDULER_ENABLED: bool = True
+    SCHEDULER_POLL_SECONDS: float = 2.0
+    JOB_MAX_ATTEMPTS: int = 3
+    JOB_RETRY_DELAY_SECONDS: int = 60
+    DISPUTE_FOLLOWUP_HOURS: int = 24
+
     @field_validator("DATABASE_URL")
     @classmethod
     def sqlite_only(cls, v: str) -> str:
