@@ -58,7 +58,25 @@
   - **Safety bug found by B2, fixed:** with a source down, an LLM class (F7, F8, F4 past deadline) went through rules 2/3/5/6 and raised disputes or closed cases, against spec 8.3. Now an LLM-sourced diagnosis can only lead to WAIT or ESCALATE (`decision.py`, `LLM_ALLOWED_ACTIONS`), and a test runs B2 with a reckless fake LLM.
   - **Known failure, reported and left for the team:** a payment that really succeeded, but whose Paytm record still says FAILED, is escalated as a record-vs-NPCI conflict (53 needless escalations).
 
+- **Review console.** `web/console.html` + `console.js`, served at `/console.html`.
+  - **Live:** the app in a phone frame next to the agent activity panel. The panel follows the most recently active case and shows readable audit steps, each tagged with the agent's job (spec 6.9).
+  - **Review queue:** the full case file, and Approve / Reject / Request info.
+  - **Numbers:** the evaluation.
+  - **Backend:** `GET /v1/review/cases`, `GET /v1/review/cases/{id}` and `GET /v1/review/evaluation`.
+  - **Reviewer decisions now reach the user:**
+    - a fixed `update` message in their language (en/hi/mr, `templates.REVIEW`), plus the history badge;
+    - the new `REVIEWED` situation, with status line "Reviewed by a specialist";
+    - the notes stay internal.
+  - Checked with headless-Chrome screenshots of all three tabs.
+- **Step 9: demo polish.**
+  - `docs/DEMO.md` maps every spec §17 beat (hook, S1, S2, S3, numbers, close, optional outage and late debit) to exact clicks and words, plus the test that covers it.
+  - `POST /mock/scenario`:
+    - `bank_outage` fails a new payment with the bank down, prepared as F6 → WAIT with no human;
+    - `late_debit` makes the S1 "yes" hit the live re-check.
+  - Both have API tests and console buttons.
+
 ## Next
+- Rehearse `docs/DEMO.md` with real voice; record the fallback clip.
 - Decide whether "record FAILED, but NPCI SUCCESS + debited + credited" should CLOSE instead of escalating (see EVALUATION.md).
 - Before demo: native-speaker review of Hindi/Marathi templates; verify RBI TAT/compensation values.
 

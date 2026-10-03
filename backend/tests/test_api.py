@@ -113,6 +113,32 @@ def test_s3_suspicious_escalates_with_case_file(api):
     assert item["case_file"]["conflicts"] and item["case_file"]["rule_trace"]
     d = api.post(f"/v1/review/{cid}/decision", json={"decision": "APPROVE", "notes": "bank confirmed no debit"})
     assert d.json()["case"]["state"] == "REVIEWED"
+    # the outcome reaches the user's chat (their language), never the reviewer's notes
+    reopened = open_case(api, "txn_s3_patel")
+    last = reopened["messages"][-1]
+    assert last["kind"] == "update" and "विशेषज्ञ" in last["text"] and "bank confirmed" not in last["text"]
+    assert reopened["case"]["status_line"] == "Reviewed by a specialist"
+    assert say(api, cid, "ab kya hua")["situation"] == "REVIEWED"
+
+
+def test_review_request_info_keeps_case_escalated_and_asks_user(api):
+    cid = open_case(api, "txn_s3_patel")["case"]["id"]
+    d = api.post(f"/v1/review/{cid}/decision", json={"decision": "REQUEST_INFO"}).json()
+    assert d["case"]["state"] == "ESCALATED"
+    msgs = api.get(f"/v1/cases/{cid}/messages").json()["messages"]
+    assert "bank statement" in msgs[-1]["text"]
+
+
+def test_console_feed_case_detail_and_evaluation(api):
+    open_case(api, "txn_s2_citymobiles")
+    cases = api.get("/v1/review/cases").json()["cases"]
+    assert cases[0]["txn_id"] == "txn_s2_citymobiles"  # most recently active first
+    detail = api.get(f"/v1/review/cases/{cases[0]['id']}").json()
+    assert any(e["event"] == "CASE_OPENED_BY_USER" for e in detail["events"])
+    ev = api.get("/v1/review/evaluation")
+    assert ev.status_code in (200, 404)
+    if ev.status_code == 200:
+        assert {"B0", "B1", "B2"} <= set(ev.json()["baselines"])
 
 
 def test_amount_claim_mismatch_escalates(api):
@@ -232,3 +258,24 @@ def test_delete_my_data(api):
     r = api.delete("/v1/me/data").json()
     assert r["deleted_messages"] >= 2
     assert api.get(f"/v1/cases/{cid}/messages").json()["messages"] == []
+
+
+# ---- spec 17 optional demo moments
+def test_demo_bank_outage_is_answered_without_a_human(api):
+    r = api.post("/mock/scenario", json={"name": "bank_outage"}).json()
+    assert (r["class"], r["decision"]) == ("F6_BANK_DOWNTIME", "WAIT")
+    opened = open_case(api, r["txn_id"])
+    reply = say(api, opened["case"]["id"], "mera paisa kaha gaya")
+    assert reply["decision"] == "WAIT" and reply["situation"] == "BANK_DOWN"
+    assert all(c["id"] != r["case_id"] for c in api.get("/v1/review/queue").json()["cases"])
+
+
+def test_demo_late_debit_is_caught_by_the_live_recheck(api):
+    cid = open_case(api, "txn_s1_sharma")["case"]["id"]
+    assert say(api, cid, "did my money get cut?")["decision"] == "OFFER_RETRY"
+    api.post("/mock/scenario", json={"name": "late_debit"})
+    r = say(api, cid, "yes")
+    assert not any(a["type"] == "OPEN_PAY_SCREEN" for a in r["actions"])
+    assert r["case"]["class"] == "F4_DEBIT_NO_CREDIT" and r["decision"] == "WAIT"
+    events = [e["event"] for e in api.get(f"/v1/review/cases/{cid}").json()["events"]]
+    assert "RECHECK_CHANGED" in events

@@ -206,6 +206,36 @@
   });
   const LANG_TAG = { en: "en-IN", hi: "hi-IN", mr: "mr-IN" };
 
+  // Ops console (console.html): escalation queue, reviewer decisions, agent activity, evaluation.
+  const ReviewRepository = {
+    /** Escalated cases with their case files. */
+    async queue() {
+      return (await api("GET", "/v1/review/queue")).cases;
+    },
+    /** Every case, most recently active first. */
+    async cases() {
+      return (await api("GET", "/v1/review/cases")).cases;
+    },
+    /** { case, case_file, reviews, events } */
+    async detail(caseId) {
+      return api("GET", `/v1/review/cases/${encodeURIComponent(caseId)}`);
+    },
+    /** decision: "APPROVE" | "REJECT" | "REQUEST_INFO". Notes stay internal. */
+    async decide(caseId, decision, notes) {
+      return api("POST", `/v1/review/${encodeURIComponent(caseId)}/decision`,
+        { decision, notes: notes || null, reviewer: "console" }, { idempotent: true });
+    },
+    /** Latest simulator report, or null if none has been run. */
+    async evaluation() {
+      try {
+        return await api("GET", "/v1/review/evaluation");
+      } catch (e) {
+        if (e.status === 404) return null;
+        throw e;
+      }
+    },
+  };
+
   // Demo-only controls for the mock world (time-skip).
   const DemoRepository = {
     async skipDays(days) {
@@ -215,11 +245,19 @@
       if (!res.ok) throw new ApiError(res.status, "Time-skip failed");
       return res.json();
     },
+    /** name: "bank_outage" | "late_debit" (spec 17 optional demo moments). */
+    async scenario(name) {
+      const res = await fetch("/mock/scenario", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new ApiError(res.status, "Scenario failed");
+      return res.json();
+    },
   };
 
   Object.assign(window, {
     BRAND, formatPaise, formatWhen, formatFull, formatDay, STATUS_LABEL,
-    ApiError, TransactionRepository, AgentRepository, PendingPayments, DemoRepository,
+    ApiError, TransactionRepository, AgentRepository, PendingPayments, DemoRepository, ReviewRepository,
     ConfigRepository, PendingVoice, Prefs, VOICE, LANG_TAG,
   });
 })();

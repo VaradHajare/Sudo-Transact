@@ -38,6 +38,8 @@ def situation(case_class: str | None, action: str | None, state: str, escalation
         return "RESOLVED_BY_RETRY"
     if state == "ESCALATED":
         return "ESCALATED_USER" if escalation_reason == "USER_REQUESTED" else "ESCALATED"
+    if state == "REVIEWED":
+        return "REVIEWED"
     if case_class in (C.F1_DECLINED_PRE_DEBIT, C.F2_TIMEOUT_PRE_DEBIT):
         return "RETRY_OFFER" if action == "OFFER_RETRY" else "PRE_DEBIT_WAIT"
     return {
@@ -62,6 +64,7 @@ STATUS = {
         "SUCCEEDED": "Your ₹{amount} payment to {payee} went through, and {payee} has received it. Please don't pay again.",
         "ESCALATED": "I can't safely decide this one on my own, because the bank's records and the payment records don't match. I've passed your case to a human expert with all the details, so you won't need to explain it again. Please don't pay again until we get back to you.",
         "ESCALATED_USER": "I've passed your case to a human expert with all the details, so you won't need to explain it again. They will get back to you here.",
+        "REVIEWED": "A support specialist has reviewed your ₹{amount} payment to {payee}, and their answer is in this chat. Please don't pay again unless they ask you to.",
         "RESOLVED_BY_RETRY": "Your new payment of ₹{amount} to {payee} went through. This case is closed.",
     },
     "hi": {
@@ -76,6 +79,7 @@ STATUS = {
         "SUCCEEDED": "{payee} को आपका {amount} रुपये का पेमेंट हो गया है, और उन्हें पैसे मिल गए हैं। दोबारा पेमेंट मत कीजिए।",
         "ESCALATED": "यह मामला मैं अपने आप तय नहीं कर सकता, क्योंकि बैंक और पेमेंट के रिकॉर्ड मेल नहीं खाते। मैंने आपका केस पूरी जानकारी के साथ एक विशेषज्ञ को भेज दिया है, आपको दोबारा कुछ बताने की ज़रूरत नहीं है। जब तक हम जवाब न दें, दोबारा पेमेंट मत कीजिए।",
         "ESCALATED_USER": "मैंने आपका केस पूरी जानकारी के साथ एक विशेषज्ञ को भेज दिया है, आपको दोबारा कुछ बताने की ज़रूरत नहीं है। वे यहीं आपको जवाब देंगे।",
+        "REVIEWED": "एक सहायता विशेषज्ञ ने {payee} को किए गए आपके {amount} रुपये के पेमेंट की जाँच कर ली है, और उनका जवाब इसी चैट में है। जब तक वे न कहें, दोबारा पेमेंट मत कीजिए।",
         "RESOLVED_BY_RETRY": "{payee} को आपका नया {amount} रुपये का पेमेंट हो गया है। यह केस बंद हो गया है।",
     },
     "mr": {
@@ -90,13 +94,14 @@ STATUS = {
         "SUCCEEDED": "{payee} ला तुमचे {amount} रुपयांचे पेमेंट झाले आहे, आणि त्यांना पैसे मिळाले आहेत. पुन्हा पेमेंट करू नका.",
         "ESCALATED": "हे प्रकरण मी स्वतः ठरवू शकत नाही, कारण बँकेचे आणि पेमेंटचे रेकॉर्ड जुळत नाहीत. मी तुमचे प्रकरण संपूर्ण माहितीसह एका तज्ञाकडे पाठवले आहे, तुम्हाला पुन्हा काही सांगावे लागणार नाही. आम्ही उत्तर देईपर्यंत पुन्हा पेमेंट करू नका.",
         "ESCALATED_USER": "मी तुमचे प्रकरण संपूर्ण माहितीसह एका तज्ञाकडे पाठवले आहे, तुम्हाला पुन्हा काही सांगावे लागणार नाही. ते इथेच तुम्हाला उत्तर देतील.",
+        "REVIEWED": "एका सहाय्यता तज्ञाने {payee} ला केलेल्या तुमच्या {amount} रुपयांच्या पेमेंटची तपासणी केली आहे, आणि त्यांचे उत्तर याच चॅटमध्ये आहे. त्यांनी सांगितल्याशिवाय पुन्हा पेमेंट करू नका.",
         "RESOLVED_BY_RETRY": "{payee} ला तुमचे नवीन {amount} रुपयांचे पेमेंट झाले आहे. हे प्रकरण बंद झाले आहे.",
     },
 }
 
 # ------------------------------------------------------------------ "why?"
 _WHY_KEYS = {"RETRY_OFFER": "PRE_DEBIT", "PRE_DEBIT_WAIT": "PRE_DEBIT", "DUPLICATE_DISPUTED": "DUPLICATE",
-             "ESCALATED_USER": "ESCALATED", "RESOLVED_BY_RETRY": "SUCCEEDED"}
+             "ESCALATED_USER": "ESCALATED", "REVIEWED": "ESCALATED", "RESOLVED_BY_RETRY": "SUCCEEDED"}
 WHY = {
     "en": {
         "PRE_DEBIT": "The payment stopped before any money left your account. The bank confirms there was no debit.",
@@ -235,6 +240,32 @@ _BRIEFING_KEYS = {"DISPUTED": "DISPUTED", "DUPLICATE_DISPUTED": "DISPUTED"}
 # Situations that produce an agent "update" message in the chat when they happen in the background.
 UPDATE_SITUATIONS = {"DISPUTED", "DUPLICATE_DISPUTED", "REVERSED", "SUCCEEDED", "RESOLVED_BY_RETRY"}
 
+# ------------------------------------------------------------------ human reviewer's outcome (posted to the chat)
+# The reviewer's own notes stay internal; the user gets a fixed, number-checked message.
+REVIEW = {
+    "en": {
+        "APPROVE": "A support specialist has checked your ₹{amount} payment to {payee} and is taking it up with the bank. You don't need to do anything; I'll tell you here when there is news.",
+        "REJECT": "A support specialist has checked your ₹{amount} payment to {payee} against the bank's records and could not confirm a problem, so no further action is being taken. If you have more details, such as your bank statement, tell me here.",
+        "REQUEST_INFO": "A support specialist is looking at your ₹{amount} payment to {payee} and needs a little more information. Please tell me here what your bank statement shows for this payment.",
+    },
+    "hi": {
+        "APPROVE": "एक सहायता विशेषज्ञ ने {payee} को किए गए आपके {amount} रुपये के पेमेंट की जाँच की है और वे इसे बैंक के साथ आगे बढ़ा रहे हैं। आपको कुछ नहीं करना है; कोई खबर होगी तो मैं यहीं बताऊँगा।",
+        "REJECT": "एक सहायता विशेषज्ञ ने {payee} को किए गए आपके {amount} रुपये के पेमेंट को बैंक के रिकॉर्ड से मिलाया, लेकिन कोई समस्या पक्की नहीं हो पाई, इसलिए आगे कोई कार्रवाई नहीं की जा रही है। अगर आपके पास और जानकारी है, जैसे बैंक स्टेटमेंट, तो यहाँ बताइए।",
+        "REQUEST_INFO": "एक सहायता विशेषज्ञ {payee} को किए गए आपके {amount} रुपये के पेमेंट को देख रहे हैं और उन्हें थोड़ी और जानकारी चाहिए। कृपया यहाँ बताइए कि आपके बैंक स्टेटमेंट में इस पेमेंट के लिए क्या दिख रहा है।",
+    },
+    "mr": {
+        "APPROVE": "एका सहाय्यता तज्ञाने {payee} ला केलेल्या तुमच्या {amount} रुपयांच्या पेमेंटची तपासणी केली आहे आणि ते हे बँकेकडे पुढे नेत आहेत. तुम्हाला काहीही करायची गरज नाही; काही बातमी आली तर मी इथेच सांगेन.",
+        "REJECT": "एका सहाय्यता तज्ञाने {payee} ला केलेल्या तुमच्या {amount} रुपयांच्या पेमेंटची बँकेच्या रेकॉर्डशी पडताळणी केली, पण कोणतीही समस्या निश्चित झाली नाही, म्हणून पुढे कोणतीही कारवाई केली जात नाही. तुमच्याकडे आणखी माहिती असेल, जसे बँक स्टेटमेंट, तर इथे सांगा.",
+        "REQUEST_INFO": "एक सहाय्यता तज्ञ {payee} ला केलेल्या तुमच्या {amount} रुपयांच्या पेमेंटची तपासणी करत आहेत आणि त्यांना थोडी अधिक माहिती हवी आहे. कृपया या पेमेंटसाठी तुमच्या बँक स्टेटमेंटमध्ये काय दिसते ते इथे सांगा.",
+    },
+}
+
+
+def review_text(decision: str, facts: Facts, lang: str) -> str:
+    lang = _lang(lang)
+    return _fill(REVIEW[lang][decision], facts, lang)
+
+
 # ------------------------------------------------------------------ chips
 CHIP_LABELS = {
     "en": {"retry": "Pay ₹{amount} again", "talk_to_human": "Talk to a human", "why": "Why?",
@@ -258,6 +289,7 @@ STATUS_LINE = {
     "SUCCEEDED": "Payment completed",
     "ESCALATED": "With a human expert",
     "ESCALATED_USER": "With a human expert",
+    "REVIEWED": "Reviewed by a specialist",
     "RESOLVED_BY_RETRY": "Paid again successfully",
 }
 
@@ -313,7 +345,7 @@ def chips(sit: str, facts: Facts, lang: str) -> list[dict]:
     ids = {
         "RETRY_OFFER": ["retry", "why", "talk_to_human"],
         "DEBIT_WAIT": ["what_if", "why", "talk_to_human"],
-        "ESCALATED": [], "ESCALATED_USER": [], "RESOLVED_BY_RETRY": [],
+        "ESCALATED": [], "ESCALATED_USER": [], "REVIEWED": ["talk_to_human"], "RESOLVED_BY_RETRY": [],
     }.get(sit, ["why", "talk_to_human"])
     return [{"id": i, "label": _fill(labels[i], facts, lang)} for i in ids]
 

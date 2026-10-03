@@ -1,30 +1,73 @@
-"""Human review queue (escalated cases) and delete-my-data."""
+"""Human review console API (escalation queue, decisions, agent activity, evaluation numbers) and
+delete-my-data. Prototype: any signed-in demo user can act as the reviewer (no separate login yet)."""
 import json
 from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import clock
 from app.api.v1.auth import current_user
 from app.api.v1.idempotency import run_idempotent
-from app.api.v1.views import case_view
-from app.config import Settings
+from app.api.v1.views import activity_view, case_view
+from app.config import REPO_DIR, Settings
+from app.conversation import templates
+from app.conversation.facts import case_facts
 from app.deps import get_app_settings, get_db
 from app.engine import audit
-from app.models import Case, Message, Review, User
+from app.engine.actions import add_agent_message
+from app.models import Case, CaseEvent, Message, Review, Transaction, User
 
 router = APIRouter()
 
 
 @router.get("/review/queue")
 def review_queue(db: Session = Depends(get_db), _: User = Depends(current_user)):
-    # Prototype: any signed-in demo user can see the queue (the console has no separate login yet).
     rows = db.query(Case).filter(Case.state == "ESCALATED").order_by(Case.updated_at.desc()).all()
     return {"cases": [{**case_view(db, c), "case_file": json.loads(c.case_file_json or "null"),
                        "escalation_reason": c.escalation_reason} for c in rows]}
+
+
+@router.get("/review/cases")
+def review_cases(db: Session = Depends(get_db), _: User = Depends(current_user)):
+    """Every case, most recently active first (by its latest audit event). The console's activity
+    panel follows the first one, i.e. whatever the agent is working on right now."""
+    latest = dict(db.query(CaseEvent.case_id, func.max(CaseEvent.id)).group_by(CaseEvent.case_id).all())
+    rows = db.query(Case).all()
+    rows.sort(key=lambda c: latest.get(c.id, 0), reverse=True)
+    out = []
+    for c in rows:
+        txn = db.get(Transaction, c.txn_id)
+        out.append({"id": c.id, "txn_id": c.txn_id, "payee": txn.payee_name, "amount_paise": txn.amount_paise,
+                    "state": c.state, "class": c.class_, "decision": c.decision, "rule": c.rule_id,
+                    "last_event_id": latest.get(c.id)})
+    return {"cases": out}
+
+
+@router.get("/review/cases/{case_id}")
+def review_case(case_id: str, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    """Reviewer view of one case: state, case file, decisions so far and the agent's activity."""
+    case = db.get(Case, case_id)
+    if case is None:
+        raise HTTPException(404, "case not found")
+    reviews = db.query(Review).filter(Review.case_id == case_id).order_by(Review.id).all()
+    return {"case": case_view(db, case), "case_file": json.loads(case.case_file_json or "null"),
+            "escalation_reason": case.escalation_reason,
+            "reviews": [{"reviewer": r.reviewer, "decision": r.decision, "notes": r.notes,
+                         "decided_at": clock.iso_ist(r.decided_at)} for r in reviews],
+            "events": activity_view(db, case_id)}
+
+
+@router.get("/review/evaluation")
+def evaluation(_: User = Depends(current_user)):
+    """The latest simulator report (backend/scripts/run_sim.py writes docs/evaluation.json)."""
+    path = REPO_DIR / "docs" / "evaluation.json"
+    if not path.exists():
+        raise HTTPException(404, "no evaluation yet: run backend/scripts/run_sim.py")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 class ReviewIn(BaseModel):
@@ -47,6 +90,12 @@ def review_decision(case_id: str, body: ReviewIn, db: Session = Depends(get_db),
         if body.decision != "REQUEST_INFO":
             case.state, case.updated_at = "REVIEWED", now
         audit.log(db, case.id, now, "REVIEW_DECIDED", body.model_dump(), actor="REVIEWER")
+        # NOTIFY (spec 6.10): the outcome appears in that payment's chat, in the user's language.
+        facts = case_facts(db, case)
+        add_agent_message(db, case, templates.review_text(body.decision, facts, case.language), now, kind="update",
+                          facts=facts.model_dump(mode="json"), intent="review")
+        case.has_unseen_update = True
+        audit.log(db, case.id, now, "NOTIFIED", {"situation": f"REVIEW_{body.decision}"})
         return 200, {"case": case_view(db, case)}
 
     return run_idempotent(db, user.id, idempotency_key, f"/v1/review/{case_id}/decision", body.model_dump(), run)

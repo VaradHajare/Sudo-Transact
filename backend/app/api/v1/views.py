@@ -21,6 +21,7 @@ NEXT_ACTION = {
     "SUCCEEDED": "Nothing to do",
     "ESCALATED": "A human expert will reply here",
     "ESCALATED_USER": "A human expert will reply here",
+    "REVIEWED": "See the specialist's reply",
     "RESOLVED_BY_RETRY": "Nothing to do",
 }
 

@@ -12,6 +12,7 @@ A phone-width web app for the AI Resolve feature. Plain HTML, CSS and JS: no fra
 | `data.js` | `BRAND` (the only place the app name appears), formatters (`formatPaise`, `formatWhen`, …) and the API client: `TransactionRepository`, `AgentRepository`, `PendingPayments`, `DemoRepository`. All repository methods are async. |
 | `voice.js` | Mic capture (`Voice.capture`: `getUserMedia` + `MediaRecorder`, voice level measured on the audio thread by a small AudioWorklet, end of speech after ~1.5 s silence, no-speech timeout) and the listening sheet (`Voice.listen`) |
 | `app.js` | Components (render functions with a props comment, returning HTML strings), the screens and a hash router |
+| `console.html`, `console.js` | Ops console (desktop): the app in a phone frame next to the live agent activity panel, the review queue, and the evaluation numbers. Same conventions: tokens in `styles.css`, render functions, `esc()`, data through `ReviewRepository` in `data.js`. |
 
 ## Screens
 | Route | Screen |
@@ -21,6 +22,15 @@ A phone-width web app for the AI Resolve feature. Plain HTML, CSS and JS: no fra
 | `#/txn/:id` | Transaction details (SUCCESS / FAILED / PENDING), case status line, **floating AI mic** on failed or pending payments |
 | `#/agent/:txnId` | AI Resolve chat bound to that payment: pinned case card, bubbles, chips, mic (voice-first) and a text fallback, spoken replies, speaker mute |
 | `#/pay/:caseId` | Pre-filled retry + mock PIN. Opens only from the backend's `OPEN_PAY_SCREEN` action |
+
+## Ops console (`/console.html`)
+| Tab | What |
+|---|---|
+| Live | The app in a phone frame (an iframe of `/`, mic allowed) next to the **agent activity panel**. The panel polls `GET /v1/review/cases` every 1.5 s, follows the most recently active case, and renders its audit log as readable steps (evidence, diagnosis, rule, re-check, action), each tagged with the agent's job (spec 6.9). It has demo buttons: skip time, bank outage, late debit. |
+| Review queue | Escalated cases with the full case file. Approve / Reject / Ask for info posts a fixed message in the user's language to that payment's chat; the reviewer's notes stay internal. |
+| Numbers | The B0 / B1 / B2 evaluation from `docs/evaluation.json`, with a confusion matrix and the reported failures. |
+
+The step-by-step demo is in `docs/DEMO.md`.
 
 ## Rules
 - Amounts are integer paise; format only for display.

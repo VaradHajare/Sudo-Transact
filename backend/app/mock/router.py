@@ -183,3 +183,54 @@ def apply_injection(db: Session, txn: Transaction, body: InjectIn, at: datetime)
         row.updated_at = at
         db.add(row)
     db.flush()
+
+
+# ------------------------------------------------------------------ demo scenarios (spec 17, optional parts)
+
+OUTAGE_PAYEES = [("Kaveri Restaurant", "kaverirest@paytm", 64000), ("Om Sweets", "omsweets@okaxis", 45000),
+                 ("Sai Hardware", "saihardware@ibl", 89900), ("Priya Fashion", "priyafashion@okhdfc", 129900)]
+
+
+class ScenarioIn(BaseModel):
+    name: Literal["bank_outage", "late_debit"]
+    user_id: str = "u_demo"
+
+
+@router.post("/scenario")
+def scenario(body: ScenarioIn, db: Session = Depends(get_db), settings: Settings = Depends(get_app_settings)):
+    """bank_outage: the payer's bank is down and a new payment fails (each call adds one). The case is
+    prepared in the background, so a mic tap answers at once: F6, money safe, don't pay again.
+    late_debit: a late debit lands on Sharma Medicals (S1) after the retry was offered. Saying "yes"
+    then hits the live re-check, which cancels the retry and the agent says to wait."""
+    import secrets
+    from datetime import timedelta
+
+    from app.engine.pipeline import process_transaction
+    from app.seed import add_transaction_with_evidence
+
+    now = clock.now(db)
+    if body.name == "bank_outage":
+        n = db.query(Transaction).filter(Transaction.id.like("txn_outage_%")).count()
+        name, vpa, amount = OUTAGE_PAYEES[n % len(OUTAGE_PAYEES)]
+        txn = add_transaction_with_evidence(db, body.user_id, dict(
+            id=f"txn_outage_{secrets.token_hex(3)}", upi_ref=f"6274{secrets.randbelow(10**8):08d}",
+            payee_name=name, payee_vpa=vpa, amount_paise=amount, status="FAILED", debited=False,
+            failure_code="BANK_UNAVAILABLE", failure_reason="Your bank is not responding right now",
+            category="Shopping", note=None, initiated_at=now - timedelta(seconds=30),
+            evidence=dict(npci=("FAILED", True, "BANK_UNAVAILABLE", "Remitter bank not available"),
+                          ledger=("NO_DEBIT", 0), merchant=False)))
+        db.flush()
+        out = process_transaction(db, settings, txn.id, "BACKGROUND")
+        db.commit()
+        return {"scenario": body.name, "txn_id": txn.id, "case_id": out.case.id, "class": out.case.class_,
+                "decision": out.case.decision,
+                "message": f"Bank outage: {name} payment failed and was prepared as {out.case.class_} -> {out.case.decision}. "
+                           "Tap the mic on it in the phone."}
+    txn = db.get(Transaction, "txn_s1_sharma")
+    if txn is None:
+        raise HTTPException(404, "Sharma Medicals demo payment missing: reset the demo data")
+    apply_injection(db, txn, InjectIn(txn_id=txn.id, ledger=LedgerPatch(state="DEBITED")), now)
+    db.commit()
+    return {"scenario": body.name, "txn_id": txn.id,
+            "message": "A late debit landed on Sharma Medicals. If the user now says yes to paying again, "
+                       "the live re-check catches it and the agent says to wait instead."}

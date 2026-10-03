@@ -39,7 +39,11 @@ copy .env.example .env            # then add your keys (see "Configuration")
 
 Open **http://localhost:8000**. Tap **City Mobiles ₹1,499 → mic**, and say or type `paise kat gaye par mila nahi`. On Home, **Skip time +1 day** (twice) moves the mock clock past the deadline to show the automatic dispute.
 
-To run the tests: `cd backend && .venv\Scripts\python -m pytest`, which runs 202 tests and makes no network calls.
+For the pitch, open **http://localhost:8000/console.html**. It shows the app in a phone frame next to the live agent activity panel, plus the review queue and the evaluation numbers. The full demo script, click by click, is in [`docs/DEMO.md`](docs/DEMO.md).
+
+To re-run the evaluation: `.venv\Scripts\python scripts\run_sim.py` (3,000 cases; add `--no-llm` to skip B2). Results go to [`docs/EVALUATION.md`](docs/EVALUATION.md).
+
+To run the tests: `cd backend && .venv\Scripts\python -m pytest`, which runs 218 tests and makes no network calls.
 
 ### Configuration (`backend/.env`, never committed)
 
@@ -82,12 +86,13 @@ Stack: FastAPI + Pydantic, SQLAlchemy on SQLite (WAL), an in-process job worker 
 | 6. Background scheduler | ✅ Done | Deadline disputes, compensation that grows per late day, closing on a late refund, without the user |
 | 7. Voice + LLM | ✅ Done | Sarvam STT/TTS with auto language, hands-free Siri-style conversation, reply text following the voice, the 4 LLM jobs |
 | Extras | ✅ Done | Off-topic questions redirected in the user's language; "thank you / धन्यवाद" ends the conversation; noise-robust listening |
-| 8. Simulator + evaluation | ⏳ To do | Thousands of generated cases; B0 (record only) → B1 (+ all evidence) → B2 (+ LLM). Targets: false-retry rate 0, right-payment attachment 100%. |
-| 9. Demo polish | ⏳ To do | Run the spec §17 demo script end to end, including the before/after hook |
+| 8. Simulator + evaluation | ✅ Done | 3,000 generated cases. False retries: B0 (record only) 670, B1/B2 **0**. Wrong closes/disputes: 0. The re-check cancelled 95 wrong actions. Right payment attached: 100%. See `docs/EVALUATION.md`. |
+| Review console | ✅ Done | `/console.html`: phone + live agent activity panel, review queue (decisions reach the user's chat), numbers |
+| 9. Demo polish | ✅ Done | `docs/DEMO.md` maps every spec §17 beat to clicks and a test; bank-outage and late-debit demo buttons (`/mock/scenario`) |
 
 ### Still remaining
-- **Step 8: simulator and B0/B1/B2 evaluation**, with numbers for the pitch (`sim_runs` / `sim_cases` tables exist).
-- **Review console:** a reviewer page for the escalation queue and the agent activity panel (the APIs `GET /v1/review/queue` and `/v1/cases/{id}/activity` already exist).
+- **A rule decision for the team:** should a payment that really succeeded, but whose Paytm record still says FAILED, be closed instead of escalated? (53 needless escalations in the evaluation.)
+- **Rehearse `docs/DEMO.md`** with real voice in the room, and record the fallback clip.
 - **Content checks before the demo:** native-speaker review of the Hindi and Marathi templates; verify RBI turnaround and compensation values (T+1, ₹100/day in config) against the current circular; check UPI Help's current status for the comparison slide.
 - **Phone demo:** an HTTPS tunnel (for example cloudflared) for mic access on a phone, with `PUBLIC_BASE_URL` set to it.
 - **Optional:**

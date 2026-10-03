@@ -309,7 +309,10 @@ This returns `201 {"transaction": {...status "SUCCESS"...}, "case": {... "state"
 | POST | `/v1/cases/{id}/dispute` | Manual trigger. `200 {"raised": true, case}` only if the rules call for a dispute, otherwise `409 {"detail", "decision", "rule"}` |
 | POST | `/v1/events/transactions` | Ingest a mock Paytm transaction: `{payee_vpa, payee_name, amount_paise, status, debited?, failure_code?, failure_reason?, note?, category?, mock_evidence?: {npci?, ledger?, merchant?}}` → `201 {transaction, case}`. Failed or pending payments get a case prepared immediately. |
 | GET | `/v1/review/queue` | Escalated cases, each with `case_file` (summary, evidence per source, conflicts, rule trace, recommended actions, timeline) |
-| POST | `/v1/review/{case_id}/decision` | `{"decision": "APPROVE"\|"REJECT"\|"REQUEST_INFO", "reviewer", "notes"}` |
+| POST | `/v1/review/{case_id}/decision` | `{"decision": "APPROVE"\|"REJECT"\|"REQUEST_INFO", "reviewer", "notes"}`. APPROVE / REJECT set the case to `REVIEWED` (situation `REVIEWED`, status line "Reviewed by a specialist"); REQUEST_INFO keeps it `ESCALATED`. Either way a fixed `update` message in the user's language goes to that payment's chat and the history badge is set. `notes` stay internal. |
+| GET | `/v1/review/cases` | Console feed: every case, most recently active first: `{id, txn_id, payee, amount_paise, state, class, decision, rule, last_event_id}` |
+| GET | `/v1/review/cases/{case_id}` | Reviewer view of any case: `{case, case_file, escalation_reason, reviews: [...], events: [...]}` (events = the audit log, same shape as `/activity`) |
+| GET | `/v1/review/evaluation` | The latest simulator report (`docs/evaluation.json`), or 404 if none has been run |
 | DELETE | `/v1/me/data` | Deletes the user's chat transcripts and claims |
 
 ## Mock world (`/mock/*`, demo only, no auth)
@@ -325,6 +328,7 @@ This returns `201 {"transaction": {...status "SUCCESS"...}, "case": {... "state"
 | GET / POST | `/mock/clock` | POST `{"advance_minutes"\|"advance_hours"\|"advance_days": n}` or `{"reset": true}`. Jobs that become due run right away (same code as the background worker): `jobs_run: [{job_id, kind, case_id, txn_id, from, to, decision, rule, status}]` |
 | GET | `/mock/jobs?status=QUEUED` | The scheduler's `jobs` table: `RECHECK_CASE`, `SLA_DEADLINE`, `DISPUTE_FOLLOWUP` |
 | POST | `/mock/inject` | `{"txn_id": "…", "npci"?: {status, final, reason_code}, "ledger"?: {state, debit_count}, "merchant"?: {credited}}` changes the outside world. The next action's live re-check catches it. |
+| POST | `/mock/scenario` | `{"name": "bank_outage"}` adds a new FAILED payment with the bank down, prepared in the background (F6 → WAIT): `{txn_id, case_id, class, decision, message}`. `{"name": "late_debit"}` lands a late debit on `txn_s1_sharma`, so a "yes" to the retry is caught by the live re-check (→ F4, WAIT). |
 
 ## Seeded demo data (`backend/scripts/reset_db.py`)
 
