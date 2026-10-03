@@ -8,7 +8,8 @@ Backend for the AI Resolve feature. Consumers: the web prototype in `web/` today
 - **Idempotency:** send `Idempotency-Key: <uuid>` on mutating calls. A repeat with the same key returns the stored response with the header `Idempotent-Replay: true`. Reusing a key with a different body returns `422`.
 - **Errors:** `{"detail": "..."}` with `401` (no or bad token), `404` (not found or not yours), `409` (the rules don't allow it), or `422` (bad input).
 - **Field casing:** transactions use camelCase (the UI's shape). Cases and turns use snake_case. The `card` object is camelCase so it can be rendered like a transaction.
-- **Mocked:** all of it (Paytm records, NPCI, bank, merchant, UDIR). LLM, STT and TTS are off: replies come from templates, and `audio_url` is `null`.
+- **Mocked:** all payment systems (Paytm records, NPCI, bank, merchant, UDIR).
+- **Real providers (when switched on in `backend/.env`):** Sarvam speech-to-text and text-to-speech, and the LLM (DeepSeek). `GET /healthz` reports which are on (`stt`, `tts`, `llm`). When `tts` is off, `audio_url` is `null`; when `stt` is off, send text. The app never holds a provider key.
 - **Background work:** a scheduler raises disputes, grows compensation and closes cases on late refunds even when the app is closed. The client learns about it from `case.hasUpdate` in history and a `kind: "update"` message in that case's chat. Nothing is pushed.
 
 **The rule for clients:** never decide anything from the transaction's own fields. In particular, `debited` is only the Paytm record's view, so it must not decide whether a retry is safe. Show `case.status_line`, `speak.text`, `chips` and `actions` from the backend. A retry can only happen through the `OPEN_PAY_SCREEN` action.
@@ -148,7 +149,20 @@ Optional fields:
 - `"lang": "en" | "hi" | "mr"`: a hint. The backend detects the language from the text (romanized Hindi and Marathi included) and replies in it.
 - `"chip_id"`: send this instead of `text` when the user taps a chip.
 
-**Audio:** multipart with `case_id` and an `audio` file. While `STT_ENABLED=false` this returns `422 stt_disabled`, so send text.
+**Audio (voice turn):** `multipart/form-data` with `case_id`, an `audio` file and an optional `lang` hint. Any browser or phone format works (webm/opus, ogg, m4a/mp4, wav, mp3), up to 10 MB. The backend calls Sarvam STT with automatic language detection, then handles the transcript like text. The response adds:
+
+```json
+"input": "voice",
+"user_text": "मेरे पैसे कट गए लेकिन दुकान वाले को नहीं मिले।",
+"stt": {"language_code": "hi-IN", "language_probability": 0.967, "latency_ms": 869}
+```
+
+| Status | `detail` | Client should |
+|---|---|---|
+| 422 | `stt_disabled` | Hide the mic and use text |
+| 422 | `no_speech` | "I didn't catch that", then let the user try again |
+| 413 | `audio too large` | Record a shorter clip |
+| 502 | `stt_failed` | Fall back to typing |
 
 ```json
 {
@@ -183,7 +197,7 @@ Optional fields:
 
 Rendering:
 - Append `messages` (the user bubble, then the agent bubble).
-- Speak `speak.text` if `audio_url` is set; the bubble text and the speech are always identical.
+- Play `speak.audio_url` (WAV) if it isn't `null` and the speaker isn't muted. The bubble text and the speech are always identical. The audio is generated on the first GET (about 2 s), so show the text right away and start the audio when it arrives. Stop playback when the user taps the mic (barge-in).
 - Show `chips` under the newest agent bubble only.
 - Re-render the case card from `case.card`.
 
@@ -272,6 +286,10 @@ This returns `201 {"transaction": {...status "SUCCESS"...}, "case": {... "state"
   ]
 }
 ```
+
+### Reply audio: `GET /v1/audio/{id}`
+
+`audio_url` is an absolute URL built from `PUBLIC_BASE_URL` (set it to the address the phone reaches, for example an HTTPS tunnel). It returns `audio/wav`. It needs no bearer header, because an `<audio>` element can't send one: the 128-bit id in the URL is the access token. `404` means unknown; `503 tts_disabled` and `502 tts_failed` mean show text only.
 
 `kind: "update"` marks a message the agent added in the background (a dispute raised, a refund landed, a retry succeeded). This is NOTIFY (spec 6.10). Show it as the newest agent bubble. It is never spoken unprompted.
 

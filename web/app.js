@@ -31,6 +31,8 @@
     check: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>',
     cross: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>',
     clock: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    speaker: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
+    speakerOff: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M23 9l-6 6M17 9l6 6"/></svg>',
     info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
     scan: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7V3h4M17 3h4v4M21 17v4h-4M7 21H3v-4M3 12h18"/></svg>',
     phone: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>',
@@ -96,7 +98,7 @@
     return `
       <div class="mic-dock">
         <span class="mic-dock__hint">${esc(hint)}</span>
-        <a class="mic-fab" href="#/agent/${encodeURIComponent(txnId)}" aria-label="${esc(hint)}: open ${esc(BRAND.assistantName)}">${Icon.mic}</a>
+        <button class="mic-fab" data-mic-txn="${esc(txnId)}" aria-label="${esc(hint)}: talk to ${esc(BRAND.assistantName)}">${Icon.mic}</button>
       </div>`;
   }
 
@@ -142,22 +144,23 @@
     return '<div class="thinking" role="status" aria-label="Thinking"><span></span><span></span><span></span></div>';
   }
 
-  /** ChatEmptyHint: shown before the first message. props: {} */
-  function ChatEmptyHint() {
+  /** ChatEmptyHint: shown before the first message. props: { voice: boolean } */
+  function ChatEmptyHint({ voice }) {
     const examples = ["Did my money get cut?", "paise kat gaye par mila nahi", "माझे पैसे कापले का?"];
     return `
       <div class="chat__hint">
         <strong>Ask about this payment</strong>
-        I already know which payment you mean. Ask in English, हिंदी or मराठी.
+        I already know which payment you mean. ${voice ? "Tap the mic and speak, or type," : "Ask"} in English, हिंदी or मराठी.
         <div class="chat__examples">${examples.map((e) => `<button class="chip" data-example="${esc(e)}">${esc(e)}</button>`).join("")}</div>
       </div>`;
   }
 
-  /** Composer: text input + send, with the mic (voice arrives in build step 7). props: { disabled } */
-  function Composer({ disabled }) {
+  /** Composer: mic (voice-first) + text input fallback. props: { disabled, voice: boolean } */
+  function Composer({ disabled, voice }) {
+    const micLabel = voice ? "Speak" : "Voice is off on the server. Please type.";
     return `
       <form class="composer" data-form="composer" autocomplete="off">
-        <button type="button" class="icon-btn icon-btn--ghost" data-action="mic" title="Voice input comes in a later build. Type for now." aria-label="Voice input (coming soon)">${Icon.micSmall}</button>
+        <button type="button" class="icon-btn ${voice ? "" : "icon-btn--ghost"}" data-action="mic" title="${micLabel}" aria-label="${micLabel}" ${disabled ? "disabled" : ""}>${Icon.micSmall}</button>
         <input class="composer__input" name="text" placeholder="Type your question…" aria-label="Your message" maxlength="500" ${disabled ? "disabled" : ""}>
         <button type="submit" class="icon-btn" aria-label="Send" ${disabled ? "disabled" : ""}>${Icon.send}</button>
       </form>`;
@@ -275,8 +278,16 @@
   }
 
   async function AgentScreen({ id: txnId }, isCurrent) {
-    const header = AppHeader({ title: esc(BRAND.assistantName), subtitle: "About this payment only · text mode", back: true });
-    $app.innerHTML = `<div class="screen screen--chat">${header}<div class="chat">${ThinkingDots()}</div>${Composer({ disabled: true })}</div>`;
+    const health = await ConfigRepository.health();
+    const voice = !!(health.stt && Voice.supported);
+    const subtitle = `About this payment only${voice ? "" : " · text mode"}`;
+    const headerFor = (muted) => AppHeader({
+      title: esc(BRAND.assistantName), subtitle, back: true,
+      right: health.tts
+        ? `<button class="app-header__back" data-action="mute" aria-pressed="${muted}" aria-label="${muted ? "Unmute replies" : "Mute replies"}">${muted ? Icon.speakerOff : Icon.speaker}</button>`
+        : "",
+    });
+    $app.innerHTML = `<div class="screen screen--chat">${headerFor(Prefs.muted)}<div class="chat">${ThinkingDots()}</div>${Composer({ disabled: true, voice })}</div>`;
 
     let opened;
     try {
@@ -287,7 +298,10 @@
     }
     if (!isCurrent()) return;
 
-    const state = { caseId: opened.case.id, card: opened.case.card, messages: opened.messages, busy: false, pending: null, error: null };
+    const state = {
+      caseId: opened.case.id, card: opened.case.card, messages: opened.messages,
+      busy: false, pending: null, error: null, muted: Prefs.muted,
+    };
 
     function paint() {
       if (!isCurrent()) return;
@@ -295,44 +309,60 @@
       const lastIsAgent = lastAgent === state.messages.length - 1;
       const body = state.messages.map((m, i) => ChatBubble({ message: m }) +
         (i === lastAgent && lastIsAgent && !state.pending ? Chips({ chips: m.chips, disabled: state.busy }) : "")).join("");
+      const input = $app.querySelector(".composer__input");
+      const draft = input && !state.busy ? input.value : "";
       $app.innerHTML = `
         <div class="screen screen--chat">
-          ${header}
+          ${headerFor(state.muted)}
           ${CaseCard({ card: state.card })}
           <div class="chat" id="chat" aria-live="polite">
-            ${!state.messages.length && !state.pending ? ChatEmptyHint() : ""}
+            ${!state.messages.length && !state.pending ? ChatEmptyHint({ voice }) : ""}
             ${body}
             ${state.pending ? ChatBubble({ message: { role: "user", text: state.pending }, pending: true }) : ""}
             ${state.busy ? ThinkingDots() : ""}
           </div>
-          ${state.error ? `<div class="error-line">${esc(state.error)}</div>` : ""}
-          ${Composer({ disabled: state.busy })}
+          ${state.error ? `<div class="error-line" role="alert">${esc(state.error)}</div>` : ""}
+          ${Composer({ disabled: state.busy, voice })}
         </div>`;
       const chat = $app.querySelector("#chat");
       chat.scrollTop = chat.scrollHeight;
-      if (!state.busy) $app.querySelector(".composer__input").focus();
+      const newInput = $app.querySelector(".composer__input");
+      if (draft) newInput.value = draft;
+      if (!state.busy && !voice) newInput.focus(); // voice-first: don't pop the keyboard
     }
 
-    async function send({ text, chipId, label }) {
+    function voiceError(e) {
+      const detail = e && e.detail;
+      if (e && e.status === 422 && detail === "no_speech") return "I didn't catch that. Tap the mic and try again, or type.";
+      if (e && e.status === 422 && String(detail).startsWith("stt_disabled")) return "Voice is off on the server. Please type.";
+      if (e && e.status === 502) return "Voice is unavailable right now. Please type your question.";
+      return `Couldn't send: ${e ? e.message : "unknown error"}`;
+    }
+
+    /** One turn: { text } | { chipId, label } | { audio: {blob, liveText} } */
+    async function send({ text, chipId, label, audio }) {
       if (state.busy) return;
+      stopAudio();
       state.busy = true;
       state.error = null;
-      state.pending = text || label;
+      state.pending = text || label || (audio && (audio.liveText || "🎤 …"));
       paint();
       try {
-        const r = chipId === "retry"
-          ? await AgentRepository.confirmRetry(state.caseId)
-          : await AgentRepository.sendTurn(state.caseId, { text, chipId });
+        let r;
+        if (chipId === "retry") r = await AgentRepository.confirmRetry(state.caseId);
+        else if (audio) r = await AgentRepository.sendVoice(state.caseId, audio.blob, { lang: Prefs.lastLang });
+        else r = await AgentRepository.sendTurn(state.caseId, { text, chipId });
         state.messages.push(...r.messages);
         state.card = r.case.card;
-        playAudio(r.speak && r.speak.audio_url);
+        Prefs.lastLang = r.lang;
+        if (!state.muted) playAudio(r.speak && r.speak.audio_url);
         const pay = (r.actions || []).find((a) => a.type === "OPEN_PAY_SCREEN");
         if (pay) {
           PendingPayments.set(state.caseId, pay.payload);
-          setTimeout(() => { if (isCurrent()) location.hash = `#/pay/${encodeURIComponent(state.caseId)}`; }, 1600);
+          setTimeout(() => { if (isCurrent()) location.hash = `#/pay/${encodeURIComponent(state.caseId)}`; }, 2200);
         }
       } catch (e) {
-        state.error = `Couldn't send: ${e.message}`;
+        state.error = audio ? voiceError(e) : `Couldn't send: ${e.message}`;
       } finally {
         state.busy = false;
         state.pending = null;
@@ -340,26 +370,48 @@
       }
     }
 
+    async function speak() {
+      if (state.busy) return;
+      if (!voice) {
+        state.error = health.stt ? "This browser can't record audio. Please type." : "Voice is off on the server. Please type.";
+        paint();
+        return;
+      }
+      stopAudio(); // barge-in: tapping the mic stops the agent talking
+      const r = await Voice.listen({ lang: Prefs.lastLang });
+      if (!isCurrent() || !r) return;
+      if (r.error) { state.error = r.error; paint(); return; }
+      send({ audio: r });
+    }
+
     $app.onsubmit = (ev) => {
       if (!ev.target.matches('[data-form="composer"]')) return;
       ev.preventDefault();
       const input = ev.target.elements.text;
       const text = input.value.trim();
-      if (text) send({ text });
+      if (text) { input.value = ""; send({ text }); }
     };
     $app.onclick = (ev) => {
       const chip = ev.target.closest("[data-chip]");
       if (chip) return send({ chipId: chip.dataset.chip, label: chip.dataset.label });
       const example = ev.target.closest("[data-example]");
       if (example) return send({ text: example.dataset.example });
-      if (ev.target.closest('[data-action="mic"]')) {
-        state.error = "Voice input arrives in a later build. Please type for now.";
+      if (ev.target.closest('[data-action="mic"]')) return speak();
+      if (ev.target.closest('[data-action="mute"]')) {
+        state.muted = !state.muted;
+        Prefs.muted = state.muted;
+        if (state.muted) stopAudio();
         paint();
         return;
       }
       if (ev.target.closest('[data-action="back"]')) goBack(`#/txn/${encodeURIComponent(txnId)}`);
     };
     paint();
+
+    // Arrived from the mic on the payment screen: the user's speech is already recorded.
+    const handoff = PendingVoice.take(txnId);
+    if (handoff && handoff.error) { state.error = handoff.error; paint(); }
+    else if (handoff) send({ audio: handoff });
   }
 
   async function PayScreen({ caseId }, isCurrent) {
@@ -433,6 +485,22 @@
     $audio.src = url;
     $audio.play().catch(() => { /* autoplay blocked: the bubble text is the same as the speech */ });
   }
+  function stopAudio() {
+    if (!$audio) return;
+    $audio.pause();
+    $audio.removeAttribute("src");
+  }
+
+  /** Floating mic on a payment: listen right here (sheet over the screen), then open that payment's chat. */
+  async function micForPayment(txnId) {
+    const target = `#/agent/${encodeURIComponent(txnId)}`;
+    const health = await ConfigRepository.health();
+    if (!health.stt || !Voice.supported) { location.hash = target; return; } // text mode
+    const r = await Voice.listen({ lang: Prefs.lastLang });
+    if (!r) return; // cancelled: stay on this screen
+    PendingVoice.set(txnId, r);
+    location.hash = target;
+  }
 
   // ------------------------------------------------------------------ router
   const routes = [
@@ -447,7 +515,7 @@
   function route() {
     const seq = ++navSeq;
     const isCurrent = () => seq === navSeq;
-    if ($audio) $audio.pause();
+    stopAudio();
     $app.onclick = defaultClick;
     $app.onsubmit = null;
     const hash = location.hash || "#/";
@@ -464,6 +532,8 @@
   }
 
   async function defaultClick(ev) {
+    const mic = ev.target.closest("[data-mic-txn]");
+    if (mic) return micForPayment(mic.dataset.micTxn);
     if (ev.target.closest('[data-action="back"]')) return goBack("#/");
     if (ev.target.closest('[data-action="reload"]')) return route();
     const skip = ev.target.closest('[data-action="skip-day"]');

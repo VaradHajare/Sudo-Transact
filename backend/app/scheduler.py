@@ -5,24 +5,27 @@ rules decide, and the live re-check guards every action):
   RECHECK_CASE      pending / bank-down / 7b waits: look again
   SLA_DEADLINE      F4 deadline reached: dispute + compensation if the money is still not back
   DISPUTE_FOLLOWUP  after a dispute: catch a late reversal (close) or grow the compensation
+  CASE_SUMMARY      LLM reviewer note for an escalated case file (only when the LLM is on)
 
 Jobs are claimed with a conditional UPDATE (QUEUED -> RUNNING), so the worker thread and a
 /mock/clock time-skip can never run the same job twice.
 """
+import json
 import logging
 import threading
 from datetime import timedelta
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from app import clock
+from app import clock, providers
 from app.config import Settings
+from app.conversation import llm_tasks
 from app.engine import audit
 from app.engine.pipeline import NOT_REDECIDED, process_transaction
 from app.models import Case, Job
 
 log = logging.getLogger("scheduler")
-JOB_KINDS = {"RECHECK_CASE", "SLA_DEADLINE", "DISPUTE_FOLLOWUP"}
+JOB_KINDS = {"RECHECK_CASE", "SLA_DEADLINE", "DISPUTE_FOLLOWUP", "CASE_SUMMARY"}
 MAX_JOBS_PER_TICK = 200
 
 
@@ -47,6 +50,11 @@ def run_job(db: Session, settings: Settings, job_id: int) -> dict:
     try:
         if job.kind not in JOB_KINDS:
             raise ValueError(f"unknown job kind {job.kind}")
+        if job.kind == "CASE_SUMMARY":
+            summary.update(_write_case_summary(db, case))
+            job.status = "DONE"
+            db.commit()
+            return summary
         if case is None or case.state in NOT_REDECIDED:
             job.status = "DONE"
             summary.update(status="SKIPPED", reason=f"case is {case.state if case else 'missing'}")
@@ -75,6 +83,25 @@ def run_job(db: Session, settings: Settings, job_id: int) -> dict:
         log.exception("job %s (%s) failed", job_id, job.kind)
         summary.update(status=job.status, error=job.last_error)
         return summary
+
+
+def _write_case_summary(db: Session, case: Case | None) -> dict:
+    """LLM job 4: a short reviewer note added to the escalation case file."""
+    p = providers.current()
+    if case is None or not case.case_file_json or p.llm is None:
+        return {"status": "SKIPPED", "reason": "no case file or LLM off"}
+    case_file = json.loads(case.case_file_json)
+    text, meta = llm_tasks.case_summary(p.llm, case_file)
+    now = clock.now(db)
+    audit.log(db, case.id, now, "LLM_CASE_SUMMARY", {"ok": meta.ok, "latency_ms": meta.latency_ms,
+                                                      "error": meta.error}, actor="AGENT")
+    if text is None:
+        raise RuntimeError(meta.error or "LLM summary failed")  # retried with backoff
+    case_file["llm_summary"] = text
+    case_file["llm_reasoning"] = [json.loads(e.payload_json) for e in audit.events(db, case.id)
+                                  if e.event_type == "LLM_CLASSIFIED"] or None
+    case.case_file_json = json.dumps(case_file, ensure_ascii=False)
+    return {"status": "DONE", "case_id": case.id}
 
 
 def run_due_jobs(db: Session, settings: Settings) -> list[dict]:

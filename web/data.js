@@ -84,15 +84,19 @@
     return token;
   }
 
-  async function api(method, path, body, { idempotent = false, retried = false } = {}) {
+  /** body: undefined | plain object (sent as JSON) | FormData (sent as multipart, e.g. audio). */
+  async function api(method, path, body, { idempotent = false, retried = false, key } = {}) {
     await ensureSession();
+    const isForm = typeof FormData !== "undefined" && body instanceof FormData;
     const headers = { Authorization: `Bearer ${token}` };
-    if (body !== undefined) headers["Content-Type"] = "application/json";
-    if (idempotent) headers["Idempotency-Key"] = newKey();
-    const res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
+    const idemKey = idempotent ? key || newKey() : null;
+    if (idemKey) headers["Idempotency-Key"] = idemKey;
+    const payload = body === undefined ? undefined : isForm ? body : JSON.stringify(body);
+    const res = await fetch(path, { method, headers, body: payload });
     if (res.status === 401 && !retried) {
       await ensureSession(true);
-      return api(method, path, body, { idempotent, retried: true });
+      return api(method, path, body, { idempotent, retried: true, key: idemKey });
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new ApiError(res.status, data.detail || res.statusText);
@@ -130,6 +134,15 @@
       if (lang) body.lang = lang;
       return api("POST", "/v1/voice/turn", body, { idempotent: true });
     },
+    /** One spoken turn: the recorded audio goes to the backend (Sarvam STT there; no key in the app). */
+    async sendVoice(caseId, blob, { lang } = {}) {
+      const form = new FormData();
+      form.append("case_id", caseId);
+      if (lang) form.append("lang", lang);
+      const ext = (blob.type || "").includes("ogg") ? "ogg" : (blob.type || "").includes("mp4") ? "m4a" : "webm";
+      form.append("audio", blob, `speech.${ext}`);
+      return api("POST", "/v1/voice/turn", form, { idempotent: true });
+    },
     /** "Pay ₹X again": live re-check + retry gate on the backend. */
     async confirmRetry(caseId) {
       return api("POST", `/v1/cases/${encodeURIComponent(caseId)}/retry/confirm`, undefined, { idempotent: true });
@@ -146,6 +159,48 @@
     clear(caseId) { store.del("pay_" + caseId); },
   };
 
+  // What the server has switched on (voice, LLM). Cached for the page's lifetime.
+  let healthPromise = null;
+  const ConfigRepository = {
+    async health() {
+      if (!healthPromise) {
+        healthPromise = fetch("/healthz").then((r) => r.json()).catch(() => ({ stt: false, tts: false }));
+      }
+      return healthPromise;
+    },
+  };
+
+  // Recorded audio handed from the listening sheet (on any screen) to the chat for that payment.
+  const PendingVoice = (() => {
+    const byTxn = new Map();
+    return {
+      set(txnId, value) { byTxn.set(txnId, value); },
+      take(txnId) { const v = byTxn.get(txnId); byTxn.delete(txnId); return v || null; },
+    };
+  })();
+
+  // Small per-viewer conveniences (never business state).
+  const Prefs = {
+    get muted() { return store.get("pref_muted") === "1"; },
+    set muted(v) { store.set("pref_muted", v ? "1" : "0"); },
+    get lastLang() { return store.get("pref_lang") || "en"; },
+    set lastLang(v) { if (v) store.set("pref_lang", v); },
+  };
+
+  /*
+   * Voice settings. The live transcript in the listening sheet uses the browser's speech
+   * recognizer only as a preview while the user talks (in Chrome that audio is processed by
+   * Google); the transcript that counts comes from Sarvam via the backend. Set
+   * liveTranscript: false to show only the voice-level orb.
+   */
+  const VOICE = Object.freeze({
+    liveTranscript: true,
+    silenceMs: 1500, // end of speech after this much silence (spec 4.2)
+    maxMs: 15000,
+    speechLevel: 0.04, // RMS above this counts as speech
+  });
+  const LANG_TAG = { en: "en-IN", hi: "hi-IN", mr: "mr-IN" };
+
   // Demo-only controls for the mock world (time-skip).
   const DemoRepository = {
     async skipDays(days) {
@@ -160,5 +215,6 @@
   Object.assign(window, {
     BRAND, formatPaise, formatWhen, formatFull, formatDay, STATUS_LABEL,
     ApiError, TransactionRepository, AgentRepository, PendingPayments, DemoRepository,
+    ConfigRepository, PendingVoice, Prefs, VOICE, LANG_TAG,
   });
 })();

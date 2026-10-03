@@ -37,7 +37,14 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     LLM_JSON_MODE: bool = False
     LLM_TIMEOUT_SECONDS: float = 10.0
+    LLM_MAX_TOKENS: int = 2000  # includes hidden reasoning tokens on reasoning models
     LLM_MIN_CONFIDENCE: float = 0.7
+    # Which of the four allowed LLM jobs are on (only when LLM_ENABLED). Rephrase is off by default:
+    # it adds ~2 s per reply and the templates are already the reviewed wording.
+    LLM_INTENT_ENABLED: bool = True  # only asked when the keyword rules find no intent
+    LLM_CLASSIFY_ENABLED: bool = True  # AMBIGUOUS cases -> JSON class; low confidence escalates
+    LLM_CASE_SUMMARY_ENABLED: bool = True  # escalation case-file summary (background job)
+    LLM_REPHRASE_ENABLED: bool = False  # rephrase template replies; number-checked
 
     # Sarvam STT / TTS (off by default; text only when off)
     SARVAM_API_KEY: str = ""
@@ -47,6 +54,8 @@ class Settings(BaseSettings):
     SARVAM_TTS_SPEAKER: str = "shubh"
     STT_ENABLED: bool = False
     TTS_ENABLED: bool = False
+    STT_MAX_AUDIO_BYTES: int = 10 * 1024 * 1024
+    MEDIA_DIR: str = str(BACKEND_DIR / "media")  # synthesized reply audio (not user audio)
 
     # decision rules (spec 8.2 rules config)
     COMPENSATION_PER_DAY: int = 100  # rupees per day late
@@ -79,6 +88,12 @@ class Settings(BaseSettings):
             if not path.is_absolute():
                 v = prefix + (BACKEND_DIR / path).resolve().as_posix()
         return v
+
+    @field_validator("MEDIA_DIR")
+    @classmethod
+    def media_dir_absolute(cls, v: str) -> str:
+        p = Path(v)
+        return str(p if p.is_absolute() else (BACKEND_DIR / p).resolve())
 
     @property
     def sqlite_path(self) -> Path | None:

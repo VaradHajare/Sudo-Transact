@@ -1,5 +1,6 @@
 """Human review queue (escalated cases) and delete-my-data."""
 import json
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -10,7 +11,8 @@ from app import clock
 from app.api.v1.auth import current_user
 from app.api.v1.idempotency import run_idempotent
 from app.api.v1.views import case_view
-from app.deps import get_db
+from app.config import Settings
+from app.deps import get_app_settings, get_db
 from app.engine import audit
 from app.models import Case, Message, Review, User
 
@@ -51,10 +53,15 @@ def review_decision(case_id: str, body: ReviewIn, db: Session = Depends(get_db),
 
 
 @router.delete("/me/data")
-def delete_my_data(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """Delete the user's chat transcripts and claims. The append-only audit log keeps only ids/intents."""
+def delete_my_data(user: User = Depends(current_user), db: Session = Depends(get_db),
+                   settings: Settings = Depends(get_app_settings)):
+    """Delete the user's chat transcripts, reply audio and claims. The append-only audit log keeps
+    only ids / intents / timings, never the text."""
     now = clock.now(db)
     case_ids = [c.id for c in db.query(Case).filter(Case.user_id == user.id).all()]
+    audio_dir = Path(settings.MEDIA_DIR) / "audio"
+    for (url,) in db.query(Message.audio_url).filter(Message.case_id.in_(case_ids), Message.audio_url.isnot(None)):
+        (audio_dir / f"{url.rsplit('/', 1)[-1]}.wav").unlink(missing_ok=True)
     n = db.query(Message).filter(Message.case_id.in_(case_ids)).delete(synchronize_session=False)
     db.query(Case).filter(Case.id.in_(case_ids)).update({"claims_json": "[]"}, synchronize_session=False)
     for cid in case_ids:

@@ -1,9 +1,17 @@
-"""Cases: open (mic tap), briefing, voice turns, chat history, retry confirm, manual dispute."""
+"""Cases: open (mic tap), briefing, voice turns, reply audio, chat history, retry confirm, manual dispute."""
+import hashlib
+import re
+import secrets
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
-from app import clock
+from app import clock, providers
+from app.providers.sarvam import ProviderError
 from app.api.v1.auth import current_user
 from app.api.v1.idempotency import run_idempotent
 from app.api.v1.views import activity_view, case_view, message_view, messages_view, txn_view
@@ -88,7 +96,10 @@ def turn_response(db: Session, r: TurnResult) -> dict:
     return {
         "case_id": case.id, "decision": case.decision, "rule": case.rule_id, "situation": r.situation,
         "intent": r.intent, "lang": r.lang, "user_text": r.user_text,
-        "speak": {"lang": r.lang, "text": r.reply, "audio_url": None, "facts": r.facts},
+        "input": "voice" if r.stt else "chip" if r.chip_id else "text",
+        "stt": {"language_code": r.stt.language_code, "language_probability": r.stt.language_probability,
+                "latency_ms": r.stt.latency_ms} if r.stt else None,
+        "speak": {"lang": r.lang, "text": r.reply, "audio_url": r.audio_url, "facts": r.facts},
         "chips": r.chips, "actions": r.actions, "case": case_view(db, case),
         "messages": [message_view(db.get(Message, r.user_message_id)), message_view(db.get(Message, r.agent_message_id))],
     }
@@ -98,27 +109,83 @@ def turn_response(db: Session, r: TurnResult) -> dict:
 async def voice_turn(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db),
                      settings: Settings = Depends(get_app_settings),
                      idempotency_key: str | None = Header(default=None)):
-    """JSON {case_id, text | chip_id, lang?}. Multipart with an `audio` file needs STT (step 7)."""
+    """JSON {case_id, text | chip_id, lang?}, or multipart {case_id, audio, lang?} (Sarvam STT)."""
+    audio: bytes | None = None
+    audio_type = None
     if request.headers.get("content-type", "").startswith("multipart/"):
         form = await request.form()
-        if form.get("audio") is not None and not settings.STT_ENABLED:
-            raise HTTPException(422, "stt_disabled: send text instead (STT_ENABLED=false)")
-        raw = {k: form.get(k) for k in ("case_id", "text", "chip_id", "lang") if form.get(k) is not None}
+        upload = form.get("audio")
+        if upload is not None:
+            if not (settings.STT_ENABLED and providers.current().sarvam):
+                raise HTTPException(422, "stt_disabled: send text instead (STT_ENABLED=false)")
+            audio = await upload.read()
+            audio_type = upload.content_type
+            if not audio:
+                raise HTTPException(422, "empty audio")
+            if len(audio) > settings.STT_MAX_AUDIO_BYTES:
+                raise HTTPException(413, "audio too large")
+        raw = {k: form.get(k) for k in ("case_id", "text", "chip_id", "lang") if isinstance(form.get(k), str)}
     else:
         raw = await request.json()
     try:
         body = TurnIn.model_validate(raw)
     except ValidationError as e:
         raise HTTPException(422, e.errors(include_url=False)) from None
-    if not (body.text and body.text.strip()) and not body.chip_id:
-        raise HTTPException(422, "send text or chip_id")
+    if audio is None and not (body.text and body.text.strip()) and not body.chip_id:
+        raise HTTPException(422, "send text, chip_id or audio")
     case = own_case(db, user, body.case_id)
+    req = body.model_dump()
+    if audio is not None:
+        req["audio_sha256"] = hashlib.sha256(audio).hexdigest()
 
     def run():
-        r = handle_turn(db, settings, case, text=body.text, chip_id=body.chip_id, lang_hint=body.lang)
+        stt = None
+        text = body.text
+        if audio is not None:
+            try:
+                stt = providers.current().sarvam.stt(audio, audio_type, "speech.webm")
+            except ProviderError as e:
+                return 502, {"detail": "stt_failed", "error": str(e)[:200]}
+            audit.log(db, case.id, clock.now(db), "STT", {  # no transcript in the audit log
+                "latency_ms": stt.latency_ms, "language_code": stt.language_code,
+                "language_probability": stt.language_probability, "bytes": len(audio),
+                "empty": not stt.transcript}, actor="AGENT")
+            if not stt.transcript:
+                db.commit()
+                return 422, {"detail": "no_speech"}
+            text = stt.transcript
+        r = handle_turn(db, settings, case, text=text, chip_id=None if stt else body.chip_id,
+                        lang_hint=body.lang, stt=stt)
         return 200, turn_response(db, r)
 
-    return run_idempotent(db, user.id, idempotency_key, "/v1/voice/turn", body.model_dump(), run)
+    # STT + LLM calls block: keep them off the event loop.
+    return await run_in_threadpool(run_idempotent, db, user.id, idempotency_key, "/v1/voice/turn", req, run)
+
+
+# ------------------------------------------------------------------ reply audio (TTS)
+@router.get("/audio/{token}")
+def reply_audio(token: str, db: Session = Depends(get_db), settings: Settings = Depends(get_app_settings)):
+    """Synthesized on first request, then cached on disk. No bearer header (an <audio> element
+    can't send one): the 128-bit token in the URL is the capability."""
+    if not re.fullmatch(r"[0-9a-f]{32}", token):
+        raise HTTPException(404)
+    path = Path(settings.MEDIA_DIR) / "audio" / f"{token}.wav"
+    if not path.exists():
+        msg = db.query(Message).filter(Message.audio_url.like(f"%/v1/audio/{token}")).first()
+        sarvam = providers.current().sarvam
+        if msg is None:
+            raise HTTPException(404)
+        if not (settings.TTS_ENABLED and sarvam):
+            raise HTTPException(503, "tts_disabled")
+        try:
+            wav = sarvam.tts(msg.text, msg.lang)
+        except ProviderError as e:
+            raise HTTPException(502, f"tts_failed: {str(e)[:200]}") from None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(f".{secrets.token_hex(4)}.tmp")
+        tmp.write_bytes(wav)
+        tmp.replace(path)
+    return FileResponse(path, media_type="audio/wav", headers={"Cache-Control": "private, max-age=86400"})
 
 
 # ------------------------------------------------------------------ retry confirm (chip tap / "yes")

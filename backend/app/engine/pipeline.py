@@ -11,8 +11,9 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app import clock
+from app import clock, providers
 from app.config import Settings
+from app.conversation import llm_tasks
 from app.domain import Action, CaseClass, Claim, Decision, Diagnosis, EvidenceBundle, RetryHistory
 from app.engine import audit
 from app.engine.actions import TERMINAL_STATES, apply_decision, escalate
@@ -109,7 +110,7 @@ def process_transaction(db: Session, settings: Settings, txn_id: str, trigger: s
             d0 = decide(diagnose(b, settings), b, now, settings, hist, recheck_changed=True)
             audit.log(db, case.id, now, "RECHECK_CHANGED", {"before_action": "re-decide", "trigger": trigger})
             audit.log(db, case.id, now, "DECIDED", {"rule": d0.rule, "action": d0.action, "trace": d0.trace})
-        d = diagnose(b, settings)
+        d = _diagnose(db, settings, case, b, now)
         dec = decide(d, b, now, settings, hist)
         _log_decision(db, case, now, b, d, dec)
 
@@ -125,6 +126,20 @@ def process_transaction(db: Session, settings: Settings, txn_id: str, trigger: s
 
     escalate(db, case, "evidence kept changing during re-checks", now, b, d, dec)
     return Outcome(case=case, bundle=b, diagnosis=d, decision=dec)
+
+
+def _diagnose(db: Session, settings: Settings, case: Case, b: EvidenceBundle, now: datetime) -> Diagnosis:
+    """Rules first. Only an AMBIGUOUS result is handed to the LLM classifier (structured evidence
+    only, JSON-validated); its confidence then goes through the decision engine's threshold."""
+    d = diagnose(b, settings)
+    p = providers.current()
+    if d.case_class != CaseClass.AMBIGUOUS or not (p.llm and settings.LLM_ENABLED and settings.LLM_CLASSIFY_ENABLED):
+        return d
+    llm_d, info = llm_tasks.classify_ambiguous(p.llm, b)
+    audit.log(db, case.id, now, "LLM_CLASSIFIED", {"rules_reasons": d.reasons, **info,
+                                                   "result": llm_d.model_dump(mode="json") if llm_d else None},
+              actor="AGENT")
+    return llm_d or d
 
 
 def _already_done(db: Session, case: Case, dec: Decision) -> bool:

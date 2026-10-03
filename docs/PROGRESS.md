@@ -12,10 +12,22 @@
 - **Step 5: web UI.** New phone-width app at `web/` root (`index.html`, `styles.css`, `data.js`, `app.js`, `README.md`) using the colours of `Paytm-Clone-main/` (left untouched). `TransactionRepository` / `AgentRepository` call `/v1` (async). Screens: home, history (badges), transaction details with floating AI mic, AI Resolve chat (text mode: case card, bubbles, chips, update messages), pay + mock PIN for safe retry. Checked in Chrome: S2 (City Mobiles, "paise kat gaye par mila nahi") and the full S1 retry flow.
 
 - **Step 6: scheduler.** `app/scheduler.py`: one in-process worker thread (started with the app, `SCHEDULER_ENABLED`) polls the `jobs` table every `SCHEDULER_POLL_SECONDS`. Jobs: `RECHECK_CASE` (pending / bank-down / 7b), `SLA_DEADLINE` (F4: dispute + compensation via mock UDIR, after a live re-check), `DISPUTE_FOLLOWUP` (daily: catch late reversal and close, or grow compensation by days late). Exclusive claim via conditional UPDATE, retries with backoff, `FAILED` after `JOB_MAX_ATTEMPTS`, stale `RUNNING` jobs re-queued at startup. `/mock/clock` now runs due jobs through the same path (`jobs_run` in the response); `/mock/jobs` lists the queue. Verified on the live server with concurrent API traffic: no SQLite lock errors.
+- **Step 7: voice + LLM.** Probed live first (2026-10-03):
+  - **Sarvam STT:** accepts browser webm/opus only as the bare `audio/webm` type, so the adapter strips `;codecs=…`. `language_code=unknown` auto-detects. About 0.5–0.9 s.
+  - **Sarvam TTS:** returns base64 WAV.
+  - **`deepseek-flash`:** a reasoning model. Hidden reasoning counts toward `max_tokens`, so small budgets return empty content; `LLM_MAX_TOKENS=2000`. JSON mode works but was slower, so `LLM_JSON_MODE=false`, and the output is Pydantic-validated either way.
+  - **Built:** `app/providers/` (LLM and Sarvam adapters, switchable by config) and `app/conversation/llm_tasks.py`, the only four LLM jobs:
+    1. Intent, asked only when the keyword rules miss (~1 s); low confidence falls back to the status answer.
+    2. Rephrase, number-checked; off by default (+2 s per reply).
+    3. AMBIGUOUS classification from structured evidence only; low confidence escalates.
+    4. Escalation case-file summary as a background `CASE_SUMMARY` job; numbers must appear in the case file.
+  - **Voice turns:** multipart audio → STT → the same turn handler. Reply audio is generated lazily at `GET /v1/audio/{id}` and cached under `backend/media/`.
+  - **Web:** `web/voice.js` listening sheet (orb, silence detection, live preview), handoff to the chat, spoken replies, barge-in, mute.
+  - **Rule fix found while testing:** rule 7b no longer waits forever when NPCI evidence is *missing*; it escalates.
+  - **Checked live:** a Hindi voice turn in 0.9 s; the browser flow sheet → STT → S2 answer; all four LLM jobs. Audible playback can't be confirmed in the automated browser (hidden tab); check it by hand.
 
 ## Next
-- Step 7: LLM adapter (intent/rephrase with number-check), Sarvam STT/TTS, listening sheet with live transcript.
-- Step 8: simulator + B0/B1/B2 evaluation.
+- Step 8: simulator + B0/B1/B2 evaluation (B2 = with the LLM classifier).
 - Before demo: native-speaker review of Hindi/Marathi templates; verify RBI TAT/compensation values.
 
 ## Notes / decisions

@@ -70,7 +70,8 @@ def decide(d: Diagnosis, b: EvidenceBundle, now: datetime, settings: Settings, h
         trace.append(f"retry gate failed on: {sorted(failed) or 'nothing'}")
         if not failed:
             return dec(Action.OFFER_RETRY, "7", "failed before debit and the retry gate passes")
-        if failed <= SOFT_CONDITIONS:
+        # "Not final yet" is worth waiting for; NPCI being unavailable is missing evidence, not "not yet".
+        if failed <= SOFT_CONDITIONS and b.npci.available:
             return dec(Action.WAIT, "7b", "gate fails only on finality / pending window / cooldown",
                        next_check_at=recheck_at)
     # 8. otherwise

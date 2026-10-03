@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app import clock
+from app import clock, providers
 from app.config import Settings
 from app.conversation import templates
 from app.conversation.facts import case_facts, case_situation
@@ -140,6 +140,10 @@ def escalate(db: Session, case: Case, reason: str, now: datetime, b: EvidenceBun
     case.updated_at = now
     db.query(Job).filter(Job.case_id == case.id, Job.status == "QUEUED").update({"status": "CANCELLED"})
     audit.log(db, case.id, now, "ESCALATED", {"reason": reason}, actor=actor)
+    p = providers.current()
+    if p.llm and p.settings and p.settings.LLM_ENABLED and p.settings.LLM_CASE_SUMMARY_ENABLED:
+        # The reviewer's LLM summary is written in the background so the user's reply isn't delayed.
+        db.add(Job(kind="CASE_SUMMARY", case_id=case.id, run_at=now, created_at=now))
 
 
 def add_agent_message(db: Session, case: Case, text: str, now: datetime, kind: str = "reply",

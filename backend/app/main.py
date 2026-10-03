@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app import providers
 from app.bootstrap import init_database
 from app.config import Settings, get_settings
 from app.scheduler import Worker
@@ -33,12 +34,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Sudo Transact backend", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
+    providers.install(providers.from_settings(settings))
     app.state.engine, app.state.SessionLocal = init_database(settings)
 
     @app.get("/healthz")
     def healthz():
-        return {"ok": True, "llm": settings.LLM_ENABLED, "stt": settings.STT_ENABLED, "tts": settings.TTS_ENABLED,
-                "scheduler": settings.SCHEDULER_ENABLED}
+        p = providers.current()
+        return {"ok": True, "llm": p.llm is not None, "stt": settings.STT_ENABLED and p.sarvam is not None,
+                "tts": settings.TTS_ENABLED and p.sarvam is not None, "scheduler": settings.SCHEDULER_ENABLED,
+                "llm_rephrase": p.llm is not None and settings.LLM_REPHRASE_ENABLED}
 
     _include_routers(app, settings)
 

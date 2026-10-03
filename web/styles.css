@@ -293,6 +293,37 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* listening sheet (spec 4.2 step 1) */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(16, 24, 40, 0); transition: background 0.2s ease;
+}
+.sheet-backdrop.is-open { background: rgba(16, 24, 40, 0.45); }
+.sheet {
+  width: 100%; max-width: var(--phone-width); padding: var(--space-3) var(--space-5) var(--space-6);
+  background: var(--color-surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  text-align: center; transform: translateY(100%); transition: transform 0.2s ease;
+}
+.sheet-backdrop.is-open .sheet { transform: translateY(0); }
+.sheet__grip { width: 40px; height: 4px; margin: 0 auto var(--space-4); border-radius: var(--radius-pill); background: var(--color-border); }
+.sheet__hint { margin: 0 0 var(--space-5); color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.sheet__transcript { min-height: 3em; margin: var(--space-5) 0 var(--space-2); font-size: var(--font-size-lg); font-weight: 600; line-height: 1.4; }
+.orb {
+  --level: 0;
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 112px; height: 112px; border: 0; border-radius: var(--radius-pill); background: transparent; padding: 0;
+}
+.orb::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(circle, var(--color-brand-sky) 0%, rgba(0, 186, 242, 0) 70%);
+  transform: scale(calc(1 + var(--level) * 0.9)); transition: transform 0.08s linear; opacity: 0.6;
+}
+.orb__core {
+  position: relative; display: flex; align-items: center; justify-content: center; width: 84px; height: 84px;
+  border-radius: var(--radius-pill); color: #fff; box-shadow: var(--shadow-fab);
+  background: linear-gradient(135deg, var(--color-brand-sky), var(--color-brand-navy));
+}
+
 .demo-tools { margin-top: var(--space-6); padding: var(--space-3); border: 1px dashed var(--color-border); border-radius: var(--radius-md); font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .demo-tools button { margin-top: var(--space-2); }
 

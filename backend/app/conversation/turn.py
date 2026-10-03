@@ -4,15 +4,18 @@ user text -> language + intent + claims -> refresh the case through the pipeline
 -> reply from templates (facts filled from the decision) -> number-check -> store both messages.
 """
 import json
+import secrets
 from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
 from app import clock
 from app.config import Settings
-from app.conversation import templates
+from app import providers
+from app.conversation import llm_tasks, templates
 from app.conversation.facts import case_facts, case_situation
-from app.conversation.intents import detect_intent, detect_language, extract_amount_paise, redact
+from app.conversation.intents import detect_intent_ex, detect_language, extract_amount_paise, redact
+from app.providers.sarvam import STTResult
 from app.domain import Claim
 from app.engine import audit
 from app.engine.actions import add_agent_message, escalate
@@ -36,6 +39,9 @@ class TurnResult:
     actions: list = field(default_factory=list)
     user_message_id: int | None = None
     agent_message_id: int | None = None
+    audio_url: str | None = None
+    stt: STTResult | None = None
+    chip_id: str | None = None
 
 
 def briefing_items(db: Session, user_id: str, exclude_case_id: str | None, lang: str) -> list[dict]:
@@ -53,15 +59,34 @@ def briefing_items(db: Session, user_id: str, exclude_case_id: str | None, lang:
     return items
 
 
+def _language(text: str | None, lang_hint: str | None, case: Case, stt: STTResult | None) -> str:
+    base = lang_hint if lang_hint in templates.LANGS else case.language
+    if stt and stt.lang in templates.LANGS and (stt.language_probability or 1.0) >= 0.5:
+        return stt.lang  # Sarvam's language ID on the actual speech
+    return detect_language(text, base) if text else base
+
+
 def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None = None,
-                chip_id: str | None = None, lang_hint: str | None = None) -> TurnResult:
+                chip_id: str | None = None, lang_hint: str | None = None,
+                stt: STTResult | None = None) -> TurnResult:
     now = clock.now(db)
-    if text:
-        lang = detect_language(text, lang_hint if lang_hint in templates.LANGS else case.language)
+    p = providers.current()
+    lang = _language(text, lang_hint, case, stt)
+    if chip_id in CHIP_INTENTS:
+        intent = CHIP_INTENTS[chip_id]
     else:
-        lang = lang_hint if lang_hint in templates.LANGS else case.language
+        intent, matched = detect_intent_ex(text or "", case.state)
+        if not matched and text and p.llm and settings.LLM_ENABLED and settings.LLM_INTENT_ENABLED:
+            out, meta = llm_tasks.extract_intent(p.llm, text, case.state == "RETRY_OFFERED")
+            audit.log(db, case.id, now, "LLM_INTENT", {  # no user text in the audit log
+                "ok": meta.ok, "latency_ms": meta.latency_ms, "error": meta.error,
+                "intent": out.intent if out else None, "language": out.language if out else None,
+                "confidence": out.confidence if out else None}, actor="AGENT")
+            if out and out.confidence >= settings.LLM_MIN_CONFIDENCE:
+                intent = out.intent
+                if not stt:
+                    lang = out.language
     case.language = lang
-    intent = CHIP_INTENTS.get(chip_id or "", None) or detect_intent(text or "", case.state)
 
     # user bubble: what they said, or the chip they tapped
     if chip_id and not text:
@@ -75,7 +100,8 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
     db.add(user_msg)
     db.flush()
     audit.log(db, case.id, now, "USER_TURN", {"message_id": user_msg.id, "intent": intent, "lang": lang,
-                                              "chip": chip_id, "input": "chip" if chip_id else "text"}, actor="USER")
+                                              "chip": chip_id,
+                                              "input": "chip" if chip_id else "voice" if stt else "text"}, actor="USER")
 
     claims = []
     amount = extract_amount_paise(text or "")
@@ -124,6 +150,15 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
         else:
             reply = templates.status_text(sit, facts, lang)
 
+    # Optional LLM rephrase. Never for the retry read-back (it must be the exact template).
+    if (settings.LLM_ENABLED and settings.LLM_REPHRASE_ENABLED and p.llm and not actions
+            and intent != "repeat"):
+        new, meta, reason = llm_tasks.rephrase(p.llm, reply, [facts], lang)
+        audit.log(db, case.id, now, "LLM_REPHRASE", {"ok": meta.ok, "latency_ms": meta.latency_ms,
+                                                     "used": new is not None, "reason": reason}, actor="AGENT")
+        if new:
+            reply = new
+
     facts_list = [facts]
     if first_turn:
         brief = briefing_items(db, case.user_id, case.id, lang)
@@ -131,20 +166,23 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
             reply += " " + item["text"]
             facts_list.append(case_facts(db, db.get(Case, item["case_id"])))
     bad = templates.number_check(reply, facts_list, lang)
-    if bad:  # cannot happen with templates; guards the future LLM rephrase
+    if bad:  # last line of defence (templates always pass; the rephrase is checked above too)
         audit.log(db, case.id, now, "NUMBER_CHECK_FAILED", {"numbers": bad})
         reply = templates.status_text(sit, facts, lang)
 
     chips = [] if actions else templates.chips(sit, facts, lang)
     facts_out = speak_facts(facts, lang)
     agent_msg = add_agent_message(db, case, reply, now, chips=chips, actions=actions, facts=facts_out, intent=intent)
+    if settings.TTS_ENABLED and p.sarvam:
+        # Synthesized lazily on first GET, so the reply text is never held up by TTS.
+        agent_msg.audio_url = f"{settings.PUBLIC_BASE_URL.rstrip('/')}/v1/audio/{secrets.token_hex(16)}"
     case.has_unseen_update = False
     audit.log(db, case.id, now, "AGENT_REPLIED", {"message_id": agent_msg.id, "situation": sit,
                                                   "decision": case.decision, "rule": case.rule_id,
                                                   "intent": intent, "lang": lang}, actor="AGENT")
     return TurnResult(case=case, intent=intent, lang=lang, user_text=user_text, reply=reply, situation=sit,
                       facts=facts_out, chips=chips, actions=actions, user_message_id=user_msg.id,
-                      agent_message_id=agent_msg.id)
+                      agent_message_id=agent_msg.id, audio_url=agent_msg.audio_url, stt=stt, chip_id=chip_id)
 
 
 def speak_facts(f: templates.Facts, lang: str) -> dict:

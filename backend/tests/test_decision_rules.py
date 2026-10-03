@@ -153,6 +153,13 @@ def test_rule7b_does_not_apply_when_a_hard_condition_also_fails():
     assert (dec.action, dec.rule) == (Action.ESCALATE, "8")
 
 
+def test_rule7b_does_not_wait_forever_on_missing_npci_evidence():
+    from app.domain import NpciEvidence
+    b = f.bundle(n=NpciEvidence(available=False))
+    dec = run(b, diag=Diagnosis(case_class=CaseClass.F1_DECLINED_PRE_DEBIT, confidence=0.95, source="LLM"))
+    assert (dec.action, dec.rule) == (Action.ESCALATE, "8")
+
+
 # ---- rule 8
 def test_rule8_ambiguous_escalates():
     dec = run(f.f1(), diag=Diagnosis(case_class=CaseClass.AMBIGUOUS, confidence=0.0))

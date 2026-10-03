@@ -85,24 +85,37 @@ def _is_question(t: str, toks: list[str]) -> bool:
     return "?" in t or any(tok in _QUESTION_WORDS for tok in toks)
 
 
-def detect_intent(text: str, case_state: str | None = None) -> str:
+_STATUS_HINTS = ["money", "paid", "payment", "debit", "deduct", "cut", "status", "refund", "went through",
+                 "paise", "paisa", "kat", "kaat", "mila", "pahunch", "pement", "payment", "fail",
+                 "पैसे", "पैसा", "कट", "मिला", "पेमेंट", "कापले", "मिळाले", "पोहोच"]
+
+
+def detect_intent_ex(text: str, case_state: str | None = None) -> tuple[str, bool]:
+    """(intent, matched). matched=False means no rule fired and status_check is only a default;
+    that is when the LLM intent extractor is consulted."""
     t = (text or "").lower().strip()
     if not t:
-        return "status_check"
+        return "status_check", False
     for intent, phrases in _PATTERNS[:2]:  # human / repeat always win
         if any(_has(t, p) for p in phrases):
-            return intent
+            return intent, True
     # Yes / no only mean something when a retry is on offer, and only in short non-question replies.
     toks = TOKEN.findall(t)
     if case_state == "RETRY_OFFERED" and len(toks) <= 5 and not _is_question(t, toks):
         if any(_has(t, p) for p in _DECLINE):
-            return "decline_retry"
+            return "decline_retry", True
         if any(_has(t, p) for p in _CONFIRM):
-            return "confirm_retry"
+            return "confirm_retry", True
     for intent, phrases in _PATTERNS[2:]:
         if any(_has(t, p) for p in phrases):
-            return intent
-    return "status_check"
+            return intent, True
+    if any(_has(t, p) for p in _STATUS_HINTS):
+        return "status_check", True
+    return "status_check", False
+
+
+def detect_intent(text: str, case_state: str | None = None) -> str:
+    return detect_intent_ex(text, case_state)[0]
 
 
 _AMOUNT = re.compile(
