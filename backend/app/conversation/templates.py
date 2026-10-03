@@ -240,6 +240,35 @@ _BRIEFING_KEYS = {"DISPUTED": "DISPUTED", "DUPLICATE_DISPUTED": "DISPUTED"}
 # Situations that produce an agent "update" message in the chat when they happen in the background.
 UPDATE_SITUATIONS = {"DISPUTED", "DUPLICATE_DISPUTED", "REVERSED", "SUCCEEDED", "RESOLVED_BY_RETRY"}
 
+# ------------------------------------------------------------------ proactive offer (right after a payment fails)
+# Team decision (mentor feedback, 2026-10-03): when a payment fails in front of the user, the agent
+# speaks first and offers help, instead of waiting for a tap on the mic.
+OFFER = {
+    "en": {
+        "FAILED": "Your ₹{amount} payment to {payee} didn't go through. Would you like me to check what happened to your money?",
+        "PENDING": "Your ₹{amount} payment to {payee} is still pending. Would you like me to check what is happening with your money?",
+    },
+    "hi": {
+        "FAILED": "{payee} को आपका {amount} रुपये का पेमेंट नहीं हो पाया। क्या मैं देखूँ कि आपके पैसे के साथ क्या हुआ?",
+        "PENDING": "{payee} को आपका {amount} रुपये का पेमेंट अभी रुका हुआ है। क्या मैं देखूँ कि आपके पैसे के साथ क्या हो रहा है?",
+    },
+    "mr": {
+        "FAILED": "{payee} ला केलेले तुमचे {amount} रुपयांचे पेमेंट झाले नाही. तुमच्या पैशांचे काय झाले ते मी पाहू का?",
+        "PENDING": "{payee} ला केलेले तुमचे {amount} रुपयांचे पेमेंट अजून प्रलंबित आहे. तुमच्या पैशांचे काय होत आहे ते मी पाहू का?",
+    },
+}
+
+
+def offer_text(txn_status: str, facts: Facts, lang: str) -> str:
+    lang = _lang(lang)
+    return _fill(OFFER[lang]["PENDING" if txn_status == "PENDING" else "FAILED"], facts, lang)
+
+
+def offer_chips(facts: Facts, lang: str) -> list[dict]:
+    labels = CHIP_LABELS[_lang(lang)]
+    return [{"id": i, "label": _fill(labels[i], facts, lang)} for i in ("help", "no_thanks")]
+
+
 # ------------------------------------------------------------------ human reviewer's outcome (posted to the chat)
 # The reviewer's own notes stay internal; the user gets a fixed, number-checked message.
 REVIEW = {
@@ -269,11 +298,11 @@ def review_text(decision: str, facts: Facts, lang: str) -> str:
 # ------------------------------------------------------------------ chips
 CHIP_LABELS = {
     "en": {"retry": "Pay ₹{amount} again", "talk_to_human": "Talk to a human", "why": "Why?",
-           "what_if": "What if it doesn't come back?"},
+           "what_if": "What if it doesn't come back?", "help": "Yes, please help", "no_thanks": "No, thanks"},
     "hi": {"retry": "₹{amount} दोबारा भेजें", "talk_to_human": "किसी इंसान से बात करें", "why": "क्यों?",
-           "what_if": "अगर नहीं आया तो?"},
+           "what_if": "अगर नहीं आया तो?", "help": "हाँ, मदद कीजिए", "no_thanks": "नहीं, धन्यवाद"},
     "mr": {"retry": "₹{amount} पुन्हा पाठवा", "talk_to_human": "माणसाशी बोला", "why": "का?",
-           "what_if": "परत नाही आले तर?"},
+           "what_if": "परत नाही आले तर?", "help": "हो, मदत करा", "no_thanks": "नाही, धन्यवाद"},
 }
 
 # Short English status line for the case card / transaction details screen.

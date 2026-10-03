@@ -7,6 +7,10 @@ Voice-first AI support teammate inside Paytm. It resolves failed or pending UPI 
 ## Team decisions that override the spec
 1. **The demo app is the web prototype in `web/`** (plain HTML/CSS/JS, no framework, no build step), not Kotlin. Wherever the spec says Kotlin / Jetpack Compose, read "the web app in `web/`". A Kotlin port may come later, so keep the API clean and app-agnostic.
 2. **SQLite, not Postgres. A jobs table, not Redis.** Do not set up Postgres or Redis.
+3. **The agent speaks first when a payment fails in front of the user** (mentor feedback, 3 Oct 2026). This replaces "speaks only after the user taps" (spec 1.0, 6.10) for that moment only.
+   - Flow: Scan & Pay fails (on purpose in the demo, `DEMO_SCAN_PAY_FAILURE`), then the chat opens and the agent offers help by voice, then the hands-free loop listens.
+   - A "yes" to that offer means "help me". It is never a retry confirmation.
+   - The mic button on failed payments stays.
 
 ## Repo layout
 ```

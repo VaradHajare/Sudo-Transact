@@ -204,13 +204,16 @@
       return;
     }
     if (!isCurrent()) return;
-    const tiles = [["Scan & Pay", Icon.scan], ["To Mobile", Icon.phone], ["To Bank", Icon.bank], ["Balance", Icon.wallet]];
+    // Only Scan & Pay is live in the prototype (it starts the demo's failed payment).
+    const tiles = [["Scan & Pay", Icon.scan, "#/scan"], ["To Mobile", Icon.phone], ["To Bank", Icon.bank], ["Balance", Icon.wallet]];
     $app.innerHTML = `
       <div class="screen">
         ${header}
         <div class="screen__body">
           <div class="card">
-            <div class="tiles">${tiles.map(([label, icon]) => `<span class="tile" aria-disabled="true"><span class="tile__icon">${icon}</span>${label}</span>`).join("")}</div>
+            <div class="tiles">${tiles.map(([label, icon, href]) => href
+              ? `<a class="tile tile--live" href="${href}"><span class="tile__icon">${icon}</span>${label}</a>`
+              : `<span class="tile" aria-disabled="true"><span class="tile__icon">${icon}</span>${label}</span>`).join("")}</div>
           </div>
           <div class="section-title">Recent payments <a href="#/history">See all</a></div>
           ${TxnList({ txns: txns.slice(0, 7) })}
@@ -316,9 +319,11 @@
     });
     $app.innerHTML = `<div class="screen screen--chat">${headerFor(Prefs.muted)}<div class="chat">${ThinkingDots()}</div>${Composer({ disabled: true, voice })}</div>`;
 
+    // Arrived straight from a payment that just failed: the agent speaks first and offers help.
+    const offerHelp = PendingHelp.take(txnId);
     let opened;
     try {
-      opened = await AgentRepository.openCase(txnId);
+      opened = await AgentRepository.openCase(txnId, { offerHelp, lang: Prefs.lastLang });
     } catch (e) {
       if (isCurrent()) $app.querySelector(".chat").innerHTML = ErrorState({ message: e.message });
       return;
@@ -583,6 +588,15 @@
       }
       if (ev.target.closest('[data-action="back"]')) goBack(`#/txn/${encodeURIComponent(txnId)}`);
     };
+
+    if (opened.offer) {
+      // Speak the offer ("…didn't go through. Shall I check what happened?"), then listen hands-free.
+      // The answer goes through the normal turn, so everything after this works as before.
+      presentReply(opened.offer, opened.offer.audio_url).then(() => {
+        if (isCurrent() && voice && !convo.active && !state.busy) converse();
+      });
+      return;
+    }
     paint();
 
     // Arrived from the mic on the payment screen: the first turn is already recorded; keep talking.
@@ -655,6 +669,124 @@
     };
   }
 
+  // ------------------------------------------------------------------ Scan & Pay (demo: the payment fails)
+
+  /** Scanner: a mock viewfinder. A merchant QR is "found" after a moment (the backend decodes it). */
+  async function ScanScreen(_params, isCurrent) {
+    $app.innerHTML = `
+      <div class="screen screen--scan">
+        ${AppHeader({ title: "Scan any QR", subtitle: "Demo: a merchant QR is scanned for you", back: true })}
+        <div class="scanner">
+          <div class="scanner__frame" aria-hidden="true"><span class="scanner__line"></span></div>
+          <p class="scanner__hint" data-scan-status>Point your camera at a QR code</p>
+        </div>
+      </div>`;
+    await new Promise((r) => setTimeout(r, 1600));
+    if (!isCurrent()) return;
+    try {
+      const qr = await TransactionRepository.scan();
+      if (!isCurrent()) return;
+      PendingScan.set(qr);
+      location.replace("#/send");
+    } catch (e) {
+      if (isCurrent()) $app.querySelector("[data-scan-status]").textContent = `Couldn't scan: ${e.message}`;
+    }
+  }
+
+  /** PaymentResult: the outcome card after paying. props: { txn } */
+  function PaymentResult({ txn }) {
+    const failed = txn.status !== "SUCCESS";
+    const icon = { SUCCESS: Icon.check, FAILED: Icon.cross, PENDING: Icon.clock }[txn.status];
+    return `
+      <div class="card txn-hero">
+        <span class="txn-hero__icon txn-hero__icon--${esc(txn.status)}">${icon}</span>
+        <p class="txn-hero__headline">${esc(HEADLINE[txn.status])}</p>
+        <div class="txn-hero__amount">${esc(formatPaise(txn.amountPaise))}</div>
+        <p class="txn-hero__payee">to <strong>${esc(txn.payeeName)}</strong></p>
+        ${failed && txn.failureReason ? `<p class="muted">${esc(txn.failureReason)}</p>` : ""}
+      </div>
+      ${failed ? `<div class="case-line">${Icon.info}<span>${esc(BRAND.assistantName)} is opening to help you…</span></div>` : ""}`;
+  }
+
+  /** Pay a scanned merchant: amount -> PIN -> result. In the demo the payment fails on purpose
+   *  (backend DEMO_SCAN_PAY_FAILURE), and the AI chat opens with the agent offering help. */
+  async function SendScreen(_params, isCurrent) {
+    const qr = PendingScan.get();
+    const header = AppHeader({ title: "Pay", subtitle: "Scanned QR", back: true });
+    if (!qr) { location.replace("#/scan"); return; }
+    const step = { name: "amount", paise: 0, note: "" };
+
+    function paint(error) {
+      if (!isCurrent()) return;
+      const payee = `
+        <div class="card payee-card">
+          <span class="avatar">${initials(qr.payee_name)}</span>
+          <div><div class="payee-card__name">${esc(qr.payee_name)}</div><div class="muted">${esc(qr.payee_vpa)} · from QR</div></div>
+        </div>`;
+      const body = step.name === "amount" ? `
+        <form class="card" data-form="amount" autocomplete="off">
+          <label class="muted" for="amount">Amount</label>
+          <div class="amount-field"><span>₹</span><input id="amount" class="amount-input" name="amount" inputmode="decimal" placeholder="0" required></div>
+          <input class="composer__input note-input" name="note" placeholder="Add a note (optional)" maxlength="60">
+          <div class="error-line" data-error>${esc(error || "")}</div>
+          <button class="btn" type="submit">Proceed to pay</button>
+        </form>` : `
+        <form class="card" data-form="pin" autocomplete="off">
+          <p class="muted center">Paying <strong>${esc(formatPaise(step.paise))}</strong> to ${esc(qr.payee_name)}</p>
+          <label class="muted" for="pin">Enter UPI PIN (mock, any 4–6 digits)</label>
+          <input id="pin" class="pin-input" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required>
+          <div class="error-line" data-error>${esc(error || "")}</div>
+          <button class="btn" type="submit">Pay ${esc(formatPaise(step.paise))}</button>
+        </form>`;
+      $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${payee}${body}<p class="muted center">${esc(BRAND.prototypeLabel)}</p></div></div>`;
+      const first = $app.querySelector("#amount, #pin");
+      if (first) first.focus();
+    }
+
+    $app.onclick = (ev) => { if (ev.target.closest('[data-action="back"]')) goBack("#/"); };
+    $app.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const form = ev.target;
+      if (form.matches('[data-form="amount"]')) {
+        const rupees = Number(String(form.elements.amount.value).replace(/[,\s₹]/g, ""));
+        if (!(rupees > 0) || rupees > 100000 || !/^\d+(\.\d{1,2})?$/.test(String(rupees))) {
+          return paint("Enter an amount between ₹1 and ₹1,00,000.");
+        }
+        step.paise = Math.round(rupees * 100);
+        step.note = form.elements.note.value.trim();
+        step.name = "pin";
+        return paint();
+      }
+      const pin = form.elements.pin.value;
+      if (!/^\d{4,6}$/.test(pin)) return paint("PIN must be 4 to 6 digits.");
+      $app.innerHTML = `<div class="screen">${header}<div class="screen__body">${Loading({ label: `Paying ${formatPaise(step.paise)} to ${qr.payee_name}…` })}</div></div>`;
+      let res;
+      try {
+        [res] = await Promise.all([
+          TransactionRepository.pay({ payee_vpa: qr.payee_vpa, payee_name: qr.payee_name, amount_paise: step.paise,
+            note: step.note || null, pin, origin: "scan" }),
+          new Promise((r) => setTimeout(r, 1200)), // a real payment takes a moment
+        ]);
+      } catch (e) {
+        step.name = "pin";
+        return paint(e.message);
+      }
+      if (!isCurrent()) return;
+      PendingScan.clear();
+      const txn = res.transaction;
+      $app.innerHTML = `<div class="screen">${AppHeader({ title: HEADLINE[txn.status] })}<div class="screen__body">${PaymentResult({ txn })}
+        ${txn.status === "SUCCESS" ? '<a class="btn" href="#/">Home</a>' : ""}</div></div>`;
+      if (needsHelp(txn)) {
+        // The failure stays on screen for a moment, then the agent opens and offers help by itself.
+        await new Promise((r) => setTimeout(r, 1800));
+        if (!isCurrent()) return;
+        PendingHelp.set(txn.id);
+        location.replace(`#/agent/${encodeURIComponent(txn.id)}`);
+      }
+    };
+    paint();
+  }
+
   // ------------------------------------------------------------------ audio (TTS)
   const $audio = document.getElementById("tts");
   let finishPlayback = null;
@@ -721,6 +853,8 @@
     [/^#\/txn\/([^/]+)$/, TxnScreen, ["id"]],
     [/^#\/agent\/([^/]+)$/, AgentScreen, ["id"]],
     [/^#\/pay\/([^/]+)$/, PayScreen, ["caseId"]],
+    [/^#\/scan$/, ScanScreen, []],
+    [/^#\/send$/, SendScreen, []],
   ];
   let navSeq = 0;
   let screenCleanup = null; // set by a screen that holds resources (mic) until navigation

@@ -115,16 +115,23 @@
     async get(id) {
       return api("GET", `/v1/transactions/${encodeURIComponent(id)}`);
     },
-    /** Mock pay screen. A retry must match the confirmed retry payload. */
-    async pay({ payee_vpa, payee_name, amount_paise, note, pin, retry_of_case_id }) {
-      return api("POST", "/v1/payments", { payee_vpa, payee_name, amount_paise, note, pin, retry_of_case_id }, { idempotent: true });
+    /** Mock pay screen. A retry must match the confirmed retry payload. origin: "scan" | "retry". */
+    async pay({ payee_vpa, payee_name, amount_paise, note, pin, retry_of_case_id, origin }) {
+      return api("POST", "/v1/payments", { payee_vpa, payee_name, amount_paise, note, pin, retry_of_case_id, origin }, { idempotent: true });
+    },
+    /** Mock QR scan (demo): the backend returns the decoded merchant { payee_name, payee_vpa }. */
+    async scan() {
+      return api("POST", "/v1/scan");
     },
   };
 
   const AgentRepository = {
-    /** User tapped the mic on this payment: one session per payment. */
-    async openCase(txnId) {
-      return api("POST", "/v1/cases/open", { txn_id: txnId });
+    /** User tapped the mic on this payment: one session per payment. With offerHelp (the payment
+     *  just failed in front of the user) the agent's first message offers help: response.offer. */
+    async openCase(txnId, { offerHelp = false, lang } = {}) {
+      const body = { txn_id: txnId };
+      if (offerHelp) { body.offer_help = true; if (lang) body.lang = lang; }
+      return api("POST", "/v1/cases/open", body);
     },
     /** One turn: text, or a chip id. */
     async sendTurn(caseId, { text, chipId, lang } = {}) {
@@ -176,6 +183,22 @@
     return {
       set(txnId, value) { byTxn.set(txnId, value); },
       take(txnId) { const v = byTxn.get(txnId); byTxn.delete(txnId); return v || null; },
+    };
+  })();
+
+  // The QR just scanned, handed from #/scan to #/send (payee details come from the QR, never typed).
+  const PendingScan = {
+    set(qr) { store.set("scan_qr", JSON.stringify(qr)); },
+    get() { try { return JSON.parse(store.get("scan_qr")); } catch { return null; } },
+    clear() { store.del("scan_qr"); },
+  };
+
+  // A payment that just failed in front of the user: the chat for it opens with the agent offering help.
+  const PendingHelp = (() => {
+    const txns = new Set();
+    return {
+      set(txnId) { txns.add(txnId); },
+      take(txnId) { const had = txns.has(txnId); txns.delete(txnId); return had; },
     };
   })();
 
@@ -258,6 +281,6 @@
   Object.assign(window, {
     BRAND, formatPaise, formatWhen, formatFull, formatDay, STATUS_LABEL,
     ApiError, TransactionRepository, AgentRepository, PendingPayments, DemoRepository, ReviewRepository,
-    ConfigRepository, PendingVoice, Prefs, VOICE, LANG_TAG,
+    ConfigRepository, PendingVoice, PendingScan, PendingHelp, Prefs, VOICE, LANG_TAG,
   });
 })();

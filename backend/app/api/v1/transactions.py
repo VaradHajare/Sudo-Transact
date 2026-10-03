@@ -117,15 +117,53 @@ def ingest_transaction(body: TxnEventIn, user: User = Depends(current_user), db:
 class PaymentIn(BaseModel):
     payee_vpa: str
     payee_name: str
-    amount_paise: int = Field(gt=0)
+    amount_paise: int = Field(gt=0, le=10_000_000)
     pin: str
     note: str | None = None
     retry_of_case_id: str | None = None
+    origin: Literal["retry", "scan"] | None = None  # "scan": a new payment from Scan & Pay
+
+
+# Demo (DEMO_SCAN_PAY_FAILURE): how a Scan & Pay payment fails, as the Paytm record and the outside world see it.
+SCAN_FAILURES = {
+    "debited": dict(status="FAILED", debited=True, code="BENEFICIARY_CREDIT_FAILED",
+                    reason="Amount debited but not credited to the merchant",
+                    npci=NpciPatch(status="FAILED", reason_code="BENEFICIARY_CREDIT_FAILED",
+                                   reason="Credit to beneficiary failed"),
+                    ledger=LedgerPatch(state="DEBITED"), merchant=MerchantPatch(credited=False)),
+    "declined": dict(status="FAILED", debited=False, code="BANK_DECLINED", reason="Payment declined by your bank",
+                     npci=NpciPatch(status="FAILED", reason_code="BANK_DECLINED", reason="Declined by remitter bank"),
+                     ledger=LedgerPatch(state="NO_DEBIT"), merchant=MerchantPatch(credited=False)),
+    "bank_down": dict(status="FAILED", debited=False, code="BANK_UNAVAILABLE",
+                      reason="Your bank is not responding right now",
+                      npci=NpciPatch(status="FAILED", reason_code="BANK_UNAVAILABLE", reason="Remitter bank not available"),
+                      ledger=LedgerPatch(state="NO_DEBIT"), merchant=MerchantPatch(credited=False)),
+    "pending": dict(status="PENDING", debited=False, code=None, reason="Waiting for confirmation from your bank",
+                    npci=NpciPatch(status="PENDING", final=False, reason="Awaiting response from bank"),
+                    ledger=LedgerPatch(state="NO_DEBIT"), merchant=MerchantPatch(credited=False)),
+}
+
+# Merchants a demo QR scan "finds", in turn.
+DEMO_QR_MERCHANTS = [
+    ("Kaveri Restaurant", "kaverirest@paytm"), ("Om Sweets", "omsweets@okaxis"),
+    ("Sai Hardware", "saihardware@ibl"), ("Priya Fashion", "priyafashion@okhdfc"),
+]
+
+
+@router.post("/scan")
+def scan_qr(user: User = Depends(current_user), db: Session = Depends(get_db),
+            settings: Settings = Depends(get_app_settings)):
+    """Mock QR scan: returns the decoded merchant. Payee details from a QR are trusted (spec 8.4 G4)."""
+    if not settings.DEMO_MODE:
+        raise HTTPException(404, "scanning is mocked only in demo mode")
+    n = db.query(Transaction).filter(Transaction.payer_user_id == user.id, Transaction.category == "Scan & Pay").count()
+    name, vpa = DEMO_QR_MERCHANTS[n % len(DEMO_QR_MERCHANTS)]
+    return {"payee_name": name, "payee_vpa": vpa}
 
 
 @router.post("/payments", status_code=201)
 def make_payment(body: PaymentIn, user: User = Depends(current_user), db: Session = Depends(get_db),
-                 idempotency_key: str | None = Header(default=None)):
+                 settings: Settings = Depends(get_app_settings), idempotency_key: str | None = Header(default=None)):
     """Mock payment from the in-app pay screen. A retry must match the confirmed retry payload exactly."""
     if not re.fullmatch(r"\d{4,6}", body.pin):
         raise HTTPException(422, "PIN must be 4-6 digits (mock)")
@@ -147,10 +185,15 @@ def make_payment(body: PaymentIn, user: User = Depends(current_user), db: Sessio
             if case.state != "RETRY_CONFIRMED" or not payload or (
                     payload["payee_vpa"], payload["amount_paise"]) != (body.payee_vpa, body.amount_paise):
                 return 409, {"detail": "no confirmed retry matches this payee and amount"}
+        fail = (SCAN_FAILURES.get(settings.DEMO_SCAN_PAY_FAILURE)
+                if settings.DEMO_MODE and body.origin == "scan" and not case else None)
+        if fail:
+            return 201, _failed_scan_payment(db, settings, user, body, fail, now)
         txn = Transaction(id="txn_" + secrets.token_hex(5), upi_ref=str(6274_0000_0000 + secrets.randbelow(10**8)),
                           payer_user_id=user.id, direction="OUT", payee_vpa=body.payee_vpa, payee_name=body.payee_name,
                           amount_paise=body.amount_paise, status="SUCCESS", debited=True, note=body.note,
-                          category="Transfer", rail_label="UPI · State Bank of India ••4821",
+                          category="Scan & Pay" if body.origin == "scan" else "Transfer",
+                          rail_label="UPI · State Bank of India ••4821",
                           retry_of_case_id=case.id if case else None, initiated_at=now,
                           updated_at=now + timedelta(seconds=2))
         db.add(txn)
@@ -163,3 +206,19 @@ def make_payment(body: PaymentIn, user: User = Depends(current_user), db: Sessio
         return 201, {"transaction": txn_view(db, txn), "case": case_view(db, case) if case else None}
 
     return run_idempotent(db, user.id, idempotency_key, "/v1/payments", req, run)
+
+
+def _failed_scan_payment(db: Session, settings: Settings, user: User, body: PaymentIn, fail: dict, now) -> dict:
+    """Demo: the payment fails the configured way. Detection prepares the case at once, so the
+    agent already knows the answer when it offers help."""
+    txn = Transaction(id="txn_" + secrets.token_hex(5), upi_ref=str(6274_0000_0000 + secrets.randbelow(10**8)),
+                      payer_user_id=user.id, direction="OUT", payee_vpa=body.payee_vpa, payee_name=body.payee_name,
+                      amount_paise=body.amount_paise, status=fail["status"], debited=fail["debited"],
+                      failure_code=fail["code"], failure_reason=fail["reason"], note=body.note, category="Scan & Pay",
+                      rail_label="UPI · State Bank of India ••4821", initiated_at=now, updated_at=now)
+    db.add(txn)
+    db.flush()
+    apply_injection(db, txn, InjectIn(txn_id=txn.id, npci=fail["npci"], ledger=fail["ledger"],
+                                      merchant=fail["merchant"]), now)
+    case = process_transaction(db, settings, txn.id, "EVENT").case
+    return {"transaction": txn_view(db, txn, case), "case": case_view(db, case)}

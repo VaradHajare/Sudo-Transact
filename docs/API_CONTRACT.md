@@ -315,6 +315,18 @@ This returns `201 {"transaction": {...status "SUCCESS"...}, "case": {... "state"
 | GET | `/v1/review/evaluation` | The latest simulator report (`docs/evaluation.json`), or 404 if none has been run |
 | DELETE | `/v1/me/data` | Deletes the user's chat transcripts and claims |
 
+## Scan & Pay, and the agent offering help (team decision 3)
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/v1/scan` | Mock QR scan (DEMO_MODE): returns the decoded merchant `{payee_name, payee_vpa}`, rotating through demo merchants |
+| POST | `/v1/payments` | Takes `"origin": "scan"` for a new payment from Scan & Pay. In DEMO_MODE it **fails on purpose**, as set by `DEMO_SCAN_PAY_FAILURE`: `debited` (default; F4: money taken, not credited), `declined` (F1), `bank_down` (F6), `pending` (F3) or `off`. The case is prepared at once and returned as `case`. |
+| POST | `/v1/cases/open` | Takes `"offer_help": true, "lang": "en"\|"hi"\|"mr"`. When the payment is FAILED or PENDING and its chat is empty, the agent's first message is added and returned as `offer` (also in `messages`): *"Your ₹640 payment to Kaveri Restaurant didn't go through. Would you like me to check what happened to your money?"*. It has `chips: help, no_thanks` and an `audio_url`, and is sent once per case. |
+
+The user's answer to the offer is an ordinary `/v1/voice/turn`:
+- an explicit short "no" ("no thanks", "nahi", "नको") → `goodbye`;
+- anything else, including "yes", "haan" or "ok" → `status_check`. **A yes to the offer never confirms a retry.**
+
 ## Mock world (`/mock/*`, demo only, no auth)
 
 | Method | Path | Notes |

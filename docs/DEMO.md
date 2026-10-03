@@ -21,6 +21,21 @@ Show the screenshots of our real Paytm test (spec 1.0): the old ₹10 chat reope
 
 In the phone, the **Anil Kumar ₹1** payment (11:19 am, "Bad Network") is the same failure. Tap it, then the mic, and say **"issue regarding last payment"**. The answer is about the ₹1 payment, not the ₹10 one. *(Test: `test_new_failure_gets_its_own_session`; the evaluation's right-payment check, 50/50.)*
 
+## 1b. The main flow: the payment fails and the agent speaks first
+
+Your mentor's point: users shouldn't have to discover a button. So now the agent comes to them.
+
+| Do | Say / tap | You'll see |
+|---|---|---|
+| Phone: tap **Scan & Pay** on Home | | The viewfinder; a demo merchant QR (e.g. Kaveri Restaurant) is "scanned" |
+| Enter an amount (e.g. 640), then **Proceed to pay**, then any PIN | | "Paying…", then **Payment failed**: "Amount debited but not credited to the merchant" |
+| Wait about 2 s | | The chat opens and **the agent speaks first**: "Your ₹640 payment to Kaveri Restaurant didn't go through. Would you like me to check what happened to your money?". The voice bar shows **Listening…** |
+| Answer | "haan, kya hua?" / "yes" / "paise kat gaye kya?" | The S2-style answer: debited, don't pay again, comes back by the date. The conversation continues hands-free, as before. "No thanks" ends it. |
+
+The way it fails is set by `DEMO_SCAN_PAY_FAILURE` in `backend/.env`: `debited` (default), `declined`, `bank_down`, `pending` or `off`. Restart the server after changing it. Skip time +1 day twice and this payment gets the automatic dispute too.
+
+*(Tests: `test_scan_pay_fails_on_purpose_and_case_is_prepared`, `test_agent_offers_help_first_then_answers`, `test_yes_to_the_offer_never_confirms_a_retry`.)*
+
 ## 2. S1: safe retry (Sharma Medicals ₹350)
 
 | Do | Say / tap | You'll see |

@@ -22,6 +22,8 @@ A phone-width web app for the AI Resolve feature. Plain HTML, CSS and JS: no fra
 | `#/txn/:id` | Transaction details (SUCCESS / FAILED / PENDING), case status line, **floating AI mic** on failed or pending payments |
 | `#/agent/:txnId` | AI Resolve chat bound to that payment: pinned case card, bubbles, chips, mic (voice-first) and a text fallback, spoken replies, speaker mute |
 | `#/pay/:caseId` | Pre-filled retry + mock PIN. Opens only from the backend's `OPEN_PAY_SCREEN` action |
+| `#/scan` | **Scan & Pay** (Home tile): a mock viewfinder; the backend "decodes" a demo merchant QR |
+| `#/send` | Amount → mock PIN → result. In the demo the payment **fails on purpose** (backend `DEMO_SCAN_PAY_FAILURE`). The failure shows for a moment, then the chat opens: the agent speaks first ("…didn't go through. Would you like me to check what happened?") and starts listening hands-free. |
 
 ## Ops console (`/console.html`)
 | Tab | What |

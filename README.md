@@ -37,13 +37,13 @@ copy .env.example .env            # then add your keys (see "Configuration")
 .venv\Scripts\python -m uvicorn app.main:app --port 8000
 ```
 
-Open **http://localhost:8000**. Tap **City Mobiles ₹1,499 → mic**, and say or type `paise kat gaye par mila nahi`. On Home, **Skip time +1 day** (twice) moves the mock clock past the deadline to show the automatic dispute.
+Open **http://localhost:8000**. Tap **Scan & Pay**, enter an amount and any PIN. The payment fails on purpose (demo), and the AI agent opens and asks if you need help. Or tap **City Mobiles ₹1,499 → mic**, and say or type `paise kat gaye par mila nahi`. On Home, **Skip time +1 day** (twice) moves the mock clock past the deadline to show the automatic dispute.
 
 For the pitch, open **http://localhost:8000/console.html**. It shows the app in a phone frame next to the live agent activity panel, plus the review queue and the evaluation numbers. The full demo script, click by click, is in [`docs/DEMO.md`](docs/DEMO.md).
 
 To re-run the evaluation: `.venv\Scripts\python scripts\run_sim.py` (3,000 cases; add `--no-llm` to skip B2). Results go to [`docs/EVALUATION.md`](docs/EVALUATION.md).
 
-To run the tests: `cd backend && .venv\Scripts\python -m pytest`, which runs 218 tests and makes no network calls.
+To run the tests: `cd backend && .venv\Scripts\python -m pytest`, which runs 223 tests and makes no network calls.
 
 ### Configuration (`backend/.env`, never committed)
 

@@ -279,3 +279,55 @@ def test_demo_late_debit_is_caught_by_the_live_recheck(api):
     assert r["case"]["class"] == "F4_DEBIT_NO_CREDIT" and r["decision"] == "WAIT"
     events = [e["event"] for e in api.get(f"/v1/review/cases/{cid}").json()["events"]]
     assert "RECHECK_CHANGED" in events
+
+
+# ---- Scan & Pay fails in front of the user; the agent offers help first (mentor feedback)
+def scan_and_pay(api, amount=25000):
+    qr = api.post("/v1/scan").json()
+    r = api.post("/v1/payments", json={**qr, "amount_paise": amount, "pin": "1234", "origin": "scan"})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def test_scan_pay_fails_on_purpose_and_case_is_prepared(api):
+    out = scan_and_pay(api)
+    assert out["transaction"]["status"] == "FAILED" and out["transaction"]["debited"] is True
+    assert (out["case"]["class"], out["case"]["decision"]) == ("F4_DEBIT_NO_CREDIT", "WAIT")
+
+
+def test_agent_offers_help_first_then_answers(api):
+    txn = scan_and_pay(api, 64000)["transaction"]
+    opened = api.post("/v1/cases/open", json={"txn_id": txn["id"], "offer_help": True, "lang": "hi"}).json()
+    offer = opened["offer"]
+    assert offer and offer["role"] == "agent" and "640" in offer["text"] and "क्या मैं देखूँ" in offer["text"]
+    assert [c["id"] for c in offer["chips"]] == ["help", "no_thanks"]
+    # opening again never repeats the offer
+    again = api.post("/v1/cases/open", json={"txn_id": txn["id"], "offer_help": True}).json()
+    assert again["offer"] is None and len(again["messages"]) == 1
+    r = say(api, opened["case"]["id"], "haan")
+    assert r["intent"] == "status_check" and r["situation"] == "DEBIT_WAIT"
+
+
+def test_no_thanks_to_the_offer_ends_the_conversation(api):
+    txn = scan_and_pay(api)["transaction"]
+    cid = api.post("/v1/cases/open", json={"txn_id": txn["id"], "offer_help": True}).json()["case"]["id"]
+    r = say(api, cid, "no thanks")
+    assert r["intent"] == "goodbye" and r["end_conversation"] is True
+
+
+def test_yes_to_the_offer_never_confirms_a_retry(api):
+    # Sharma Medicals has a retry on offer; "yes" right after a help offer must not confirm it.
+    opened = api.post("/v1/cases/open", json={"txn_id": "txn_s1_sharma", "offer_help": True}).json()
+    assert opened["case"]["state"] == "RETRY_OFFERED" and opened["offer"]
+    r = say(api, opened["case"]["id"], "yes")
+    assert r["intent"] == "status_check" and r["actions"] == []
+    assert r["case"]["state"] == "RETRY_OFFERED"
+
+
+def test_scan_pay_can_be_switched_off(client):
+    client.app.state.settings.DEMO_SCAN_PAY_FAILURE = "off"
+    tok = client.post("/v1/session", json={"user_id": "u_demo"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    qr = client.post("/v1/scan", headers=h).json()
+    r = client.post("/v1/payments", json={**qr, "amount_paise": 5000, "pin": "1234", "origin": "scan"}, headers=h)
+    assert r.json()["transaction"]["status"] == "SUCCESS"

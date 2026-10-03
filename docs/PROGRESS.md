@@ -75,6 +75,13 @@
     - `late_debit` makes the S1 "yes" hit the live re-check.
   - Both have API tests and console buttons.
 
+- **The agent speaks first after a failure in front of the user** (mentor feedback, 2026-10-03; CLAUDE.md team decision 3).
+  - **Flow:** Home → Scan & Pay (mock viewfinder, `POST /v1/scan`) → amount → PIN → the payment fails on purpose (`DEMO_SCAN_PAY_FAILURE`, default `debited` → F4) → failure screen about 2 s → the chat opens.
+  - **The offer:** `/v1/cases/open` with `offer_help` adds one message, in the user's language (`templates.OFFER`, en/hi/mr), with chips "Yes, please help" / "No, thanks" and TTS. The app speaks it, then starts the hands-free loop.
+  - **Answers:** only an explicit short "no" ends the conversation; anything else, "yes" included, gets the status answer. A "yes" to the offer can never confirm a retry; this is tested on a RETRY_OFFERED case.
+  - **Checked in headless Chrome over CDP:** home → scan → amount → PIN → failed → chat with the spoken offer (Sarvam audio served) → Listening….
+  - **Tests:** 223 pass.
+
 ## Next
 - Rehearse `docs/DEMO.md` with real voice; record the fallback clip.
 - Decide whether "record FAILED, but NPCI SUCCESS + debited + credited" should CLOSE instead of escalating (see EVALUATION.md).

@@ -14,7 +14,8 @@ from app.config import Settings
 from app import providers
 from app.conversation import llm_tasks, templates
 from app.conversation.facts import case_facts, case_situation
-from app.conversation.intents import detect_intent_ex, detect_language, extract_amount_paise, redact
+from app.conversation.intents import (detect_intent_ex, detect_language, extract_amount_paise, is_offer_decline,
+                                     redact)
 from app.providers.sarvam import STTResult
 from app.domain import Claim
 from app.engine import audit
@@ -23,7 +24,8 @@ from app.engine.pipeline import confirm_retry, process_transaction
 from app.models import Case, Message, Retry, Transaction
 
 CHIP_INTENTS = {"retry": "confirm_retry", "why": "why", "talk_to_human": "talk_to_human",
-                "what_if": "what_if", "decline": "decline_retry"}
+                "what_if": "what_if", "decline": "decline_retry", "help": "status_check", "no_thanks": "goodbye"}
+OFFER_INTENT = "offer_help"  # Message.intent of the agent's proactive first message
 
 
 @dataclass
@@ -73,10 +75,18 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
     now = clock.now(db)
     p = providers.current()
     lang = _language(text, lang_hint, case, stt)
+    last_agent = (db.query(Message).filter(Message.case_id == case.id, Message.role == "agent")
+                  .order_by(Message.id.desc()).first())
+    answering_offer = last_agent is not None and last_agent.intent == OFFER_INTENT
     if chip_id in CHIP_INTENTS:
         intent = CHIP_INTENTS[chip_id]
+    elif answering_offer and is_offer_decline(text or ""):
+        intent = "goodbye"
     else:
         intent, matched = detect_intent_ex(text or "", case.state)
+        if answering_offer and (intent in ("confirm_retry", "decline_retry") or not matched):
+            # "Yes" to "shall I check?" means "help me": never a payment confirmation.
+            intent, matched = "status_check", True
         if not matched and text and p.llm and settings.LLM_ENABLED and settings.LLM_INTENT_ENABLED:
             out, meta = llm_tasks.extract_intent(p.llm, text, case.state == "RETRY_OFFERED")
             audit.log(db, case.id, now, "LLM_INTENT", {  # no user text in the audit log

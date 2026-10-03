@@ -35,6 +35,10 @@ def own_case(db: Session, user: User, case_id: str) -> Case:
 # ------------------------------------------------------------------ open (user tapped the mic on a payment)
 class OpenIn(BaseModel):
     txn_id: str
+    # The payment just failed in front of the user: the agent speaks first and offers help
+    # (team decision after mentor feedback; replaces "speaks only after a tap" for this moment).
+    offer_help: bool = False
+    lang: str | None = None
 
 
 @router.post("/cases/open")
@@ -48,6 +52,10 @@ def open_case(body: OpenIn, user: User = Depends(current_user), db: Session = De
         raise HTTPException(422, "only outgoing payments can be opened as a case")
     existed = db.query(Case).filter(Case.txn_id == txn.id).count() > 0
     case = process_transaction(db, settings, txn.id, "USER_OPEN").case
+    offer = None
+    if body.offer_help and txn.status in ("FAILED", "PENDING") and not db.query(Message).filter(
+            Message.case_id == case.id).count():
+        offer = _offer_help(db, settings, case, txn, body.lang)
     briefing = briefing_items(db, user.id, case.id, case.language)
     had_update = case.has_unseen_update
     case.has_unseen_update = False  # the user is looking at it now
@@ -55,7 +63,29 @@ def open_case(body: OpenIn, user: User = Depends(current_user), db: Session = De
               actor="USER")
     db.commit()
     return {"case": case_view(db, case), "transaction": txn_view(db, txn, case),
-            "messages": messages_view(db, case.id), "briefing": briefing, "prepared_in_background": existed}
+            "messages": messages_view(db, case.id), "briefing": briefing, "prepared_in_background": existed,
+            "offer": message_view(offer) if offer else None}
+
+
+def _offer_help(db: Session, settings: Settings, case: Case, txn: Transaction, lang: str | None) -> Message:
+    """The agent's first words, once per case: what failed and an offer to check. Facts only from the
+    Paytm record; the diagnosis is given when the user answers (rules decide, as for any turn)."""
+    from app.conversation.facts import case_facts
+    from app.conversation.templates import LANGS, offer_chips, offer_text
+    from app.conversation.turn import OFFER_INTENT, speak_facts
+    from app.engine.actions import add_agent_message
+
+    if lang in LANGS:
+        case.language = lang
+    facts = case_facts(db, case)
+    now = clock.now(db)
+    msg = add_agent_message(db, case, offer_text(txn.status, facts, case.language), now,
+                            chips=offer_chips(facts, case.language), facts=speak_facts(facts, case.language),
+                            intent=OFFER_INTENT)
+    if settings.TTS_ENABLED and providers.current().sarvam:
+        msg.audio_url = f"{settings.PUBLIC_BASE_URL.rstrip('/')}/v1/audio/{secrets.token_hex(16)}"
+    audit.log(db, case.id, now, "HELP_OFFERED", {"message_id": msg.id, "lang": case.language}, actor="AGENT")
+    return msg
 
 
 @router.get("/briefing")

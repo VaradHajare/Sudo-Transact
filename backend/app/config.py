@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     PUBLIC_BASE_URL: str = "http://localhost:8000"
     DEMO_MODE: bool = True
     SEED_DEMO_DATA: bool = True
+    # Demo: a payment made from Scan & Pay fails on purpose, and the agent offers help at once.
+    # debited (money taken, not credited: F4) | declined (F1) | bank_down (F6) | pending (F3) | off
+    DEMO_SCAN_PAY_FAILURE: str = "debited"
     DEMO_USER_ID: str = "u_demo"
     WEB_DIR: str = str(REPO_DIR / "web")
 

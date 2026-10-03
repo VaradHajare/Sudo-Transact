@@ -53,6 +53,9 @@
   --header-height: 56px;
   --mic-size: 68px;
 
+  /* Scan & Pay viewfinder */
+  --color-scanner-bg: #0b1220;
+
   /* ops console (console.html) */
   --console-max-width: 1440px;
   --console-phone-height: 760px;
@@ -358,6 +361,38 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 @media (min-width: 480px) {
   .mic-dock { bottom: var(--space-6); }
 }
+
+/* ------------------------------------------------------------------ Scan & Pay */
+.tile--live { cursor: pointer; }
+.tile--live .tile__icon { background: var(--color-brand-navy); color: #fff; }
+.screen--scan { background: var(--color-scanner-bg); }
+.scanner { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-5); padding: var(--space-5); }
+.scanner__frame {
+  position: relative; width: 240px; height: 240px; border-radius: var(--radius-md); overflow: hidden;
+  background:
+    linear-gradient(var(--color-brand-sky), var(--color-brand-sky)) top left / 36px 4px no-repeat,
+    linear-gradient(var(--color-brand-sky), var(--color-brand-sky)) top left / 4px 36px no-repeat,
+    linear-gradient(var(--color-brand-sky), var(--color-brand-sky)) top right / 36px 4px no-repeat,
+    linear-gradient(var(--color-brand-sky), var(--color-brand-sky)) top right / 4px 36px no-repeat,
+    linear-gradient(var(--color-brand-sky), var(--color-brand-sky)) bottom left / 36px 4px no-repeat,
+    linear-gradient(var(--color-brand-sky), var(--color-brand-sky)) bottom left / 4px 36px no-repeat,
+    linear-gradient(var(--color-brand-sky), var(--color-brand-sky)) bottom right / 36px 4px no-repeat,
+    linear-gradient(var(--color-brand-sky), var(--color-brand-sky)) bottom right / 4px 36px no-repeat,
+    rgba(255, 255, 255, 0.04);
+}
+.scanner__line {
+  position: absolute; left: 12px; right: 12px; top: 12px; height: 2px; background: var(--color-brand-sky);
+  box-shadow: 0 0 12px var(--color-brand-sky); animation: scanline 1.6s ease-in-out infinite alternate;
+}
+@keyframes scanline { to { top: calc(100% - 14px); } }
+@media (prefers-reduced-motion: reduce) { .scanner__line { animation: none; top: 50%; } }
+.scanner__hint { margin: 0; color: rgba(255, 255, 255, 0.85); font-size: var(--font-size-sm); text-align: center; }
+.payee-card { display: flex; align-items: center; gap: var(--space-3); }
+.payee-card__name { font-weight: 700; }
+.amount-field { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-2) 0 var(--space-3); font-size: var(--font-size-amount); font-weight: 800; }
+.amount-input { flex: 1; min-width: 0; font: inherit; border: 0; border-bottom: 2px solid var(--color-border); background: transparent; outline: none; padding: var(--space-1) 0; }
+.amount-input:focus { border-bottom-color: var(--color-brand-sky); }
+.note-input { width: 100%; margin-bottom: var(--space-2); }
 
 /* ------------------------------------------------------------------ ops console (console.html) */
 .console { min-height: 100vh; background: var(--color-page); }
