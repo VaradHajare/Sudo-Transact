@@ -38,7 +38,7 @@ def own_case(db: Session, user: User, case_id: str) -> Case:
 class OpenIn(BaseModel):
     txn_id: str
     # The payment just failed in front of the user (team decision 3): the chat opens with the
-    # agent's detailed investigation (six agents) and its conclusion, in the UI language.
+    # agent's detailed investigation (three agents) and its conclusion, in the UI language.
     investigate: bool = False
     lang: str | None = None
 
@@ -74,7 +74,7 @@ def open_case(body: OpenIn, user: User = Depends(current_user), db: Session = De
 def _investigate(db: Session, settings: Settings, case: Case, txn: Transaction, lang: str | None,
                  evidence_before: dict) -> dict:
     """Two agent messages, once per case: the intro ("…failed. I'm running a detailed investigation")
-    carrying the six agents' steps, then the conclusion (the normal status answer) with its chips."""
+    carrying the three agents' steps, then the conclusion (the normal status answer) with its chips."""
     from app.conversation import investigation, templates
     from app.conversation.facts import case_facts
     from app.conversation.turn import speak_facts
