@@ -23,7 +23,14 @@ TTS_MAX_CHARS = 2500
 
 
 class ProviderError(Exception):
-    pass
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status  # upstream HTTP status, if any
+
+    @property
+    def unusable_audio(self) -> bool:
+        """Sarvam answers 400 for empty / too-short / undecodable clips ("Audio duration is 0")."""
+        return self.status == 400
 
 
 @dataclass
@@ -59,7 +66,8 @@ class SarvamClient:
             r.raise_for_status()
             d = r.json()
         except (httpx.HTTPError, ValueError) as e:
-            raise ProviderError(f"stt failed: {type(e).__name__}: {_short(e)}") from None
+            status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
+            raise ProviderError(f"stt failed: {type(e).__name__}: {_short(e)}", status) from None
         return STTResult(transcript=(d.get("transcript") or "").strip(), language_code=d.get("language_code"),
                          language_probability=d.get("language_probability"),
                          latency_ms=int((time.perf_counter() - t0) * 1000))

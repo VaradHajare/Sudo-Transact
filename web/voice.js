@@ -142,12 +142,21 @@
         if (ctx.state === "suspended") await ctx.resume().catch(() => {});
         const started = performance.now();
         let lastLoud = started;
+        // Room noise = the quietest moment in the first ~0.4 s (robust even if the user starts
+        // talking at once). Speech must clear it by VOICE.noiseFactor, so fans, traffic or the
+        // tail of the agent's own voice don't count as the user speaking.
+        let noiseFloor = Infinity;
+        let threshold = VOICE.speechLevel;
         rec.start(250);
         stopMeter = await meter(ctx, stream, (rms) => {
           if (settled) return;
           const now = performance.now();
           onLevel(Math.min(1, rms * 8));
-          if (rms > VOICE.speechLevel) { heard = true; lastLoud = now; }
+          if (now - started < 400) {
+            noiseFloor = Math.min(noiseFloor, rms);
+            threshold = Math.max(VOICE.speechLevel, noiseFloor * VOICE.noiseFactor);
+          }
+          if (rms > threshold) { heard = true; lastLoud = now; }
           if (heard && now - lastLoud > VOICE.silenceMs) finish(false); // end of speech
           else if (!heard && now - started > noSpeechMs) finish(true); // nobody spoke
           else if (now - started > VOICE.maxMs) finish(false);

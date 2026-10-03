@@ -146,6 +146,11 @@ async def voice_turn(request: Request, user: User = Depends(current_user), db: S
             try:
                 stt = providers.current().sarvam.stt(audio, audio_type, "speech.webm")
             except ProviderError as e:
+                if e.unusable_audio:  # empty / too-short clip: same as hearing nothing
+                    audit.log(db, case.id, clock.now(db), "STT", {"bytes": len(audio), "empty": True,
+                                                                  "rejected": True}, actor="AGENT")
+                    db.commit()
+                    return 422, {"detail": "no_speech"}
                 return 502, {"detail": "stt_failed", "error": str(e)[:200]}
             audit.log(db, case.id, clock.now(db), "STT", {  # no transcript in the audit log
                 "latency_ms": stt.latency_ms, "language_code": stt.language_code,

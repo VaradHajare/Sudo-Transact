@@ -121,14 +121,16 @@
       </section>`;
   }
 
-  /** ChatBubble. props: { message: {role, kind, text, ts?}, pending?: boolean } */
-  function ChatBubble({ message, pending }) {
+  /** ChatBubble. props: { message: {id?, role, kind, text, ts?}, pending?: boolean,
+   *  shownText?: string } (shownText: the part of a reply revealed so far, in step with the voice) */
+  function ChatBubble({ message, pending, shownText }) {
     const isUser = message.role === "user";
     const isUpdate = message.kind === "update";
     const cls = isUser ? "bubble--user" : `bubble--agent ${isUpdate ? "bubble--update" : ""}`;
+    const text = shownText === undefined ? message.text : shownText;
     return `
-      <div class="bubble ${cls} ${pending ? "bubble--pending" : ""}" lang="${esc(message.lang || "")}">
-        ${isUpdate ? '<span class="bubble__tag">Update</span>' : ""}<span class="bubble__text">${esc(message.text)}</span>
+      <div class="bubble ${cls} ${pending ? "bubble--pending" : ""}" lang="${esc(message.lang || "")}" ${message.id ? `data-msg-id="${esc(message.id)}"` : ""}>
+        ${isUpdate ? '<span class="bubble__tag">Update</span>' : ""}<span class="bubble__text">${esc(text)}</span>
         ${message.ts ? `<span class="bubble__time">${esc(formatWhen(message.ts))}</span>` : ""}
       </div>`;
   }
@@ -326,6 +328,7 @@
     const state = {
       caseId: opened.case.id, card: opened.case.card, messages: opened.messages,
       busy: false, pending: null, error: null, notice: null, muted: Prefs.muted,
+      revealing: null, // { id, tokens, shown }: the newest reply, revealed in step with its voice
     };
     // Hands-free conversation (Siri-style): listen -> reply is spoken -> listen again, until the
     // user is silent, says thanks, taps stop, or the reply ends the conversation.
@@ -334,10 +337,21 @@
 
     function paint() {
       if (!isCurrent()) return;
+      const rev = state.revealing;
       const lastAgent = state.messages.map((m) => m.role).lastIndexOf("agent");
       const lastIsAgent = lastAgent === state.messages.length - 1;
-      const body = state.messages.map((m, i) => ChatBubble({ message: m }) +
-        (i === lastAgent && lastIsAgent && !state.pending ? Chips({ chips: m.chips, disabled: state.busy }) : "")).join("");
+      const showChips = !state.pending && !rev; // follow-up chips only once the reply has finished
+      const body = state.messages.map((m, i) => {
+        if (rev && m.id === rev.id) {
+          // not started speaking yet -> "thinking" dots; then the words appear as they are spoken
+          return rev.shown === 0 ? ThinkingDots() : ChatBubble({ message: m, shownText: rev.tokens.slice(0, rev.shown).join("") });
+        }
+        return ChatBubble({ message: m }) +
+          (i === lastAgent && lastIsAgent && showChips ? Chips({ chips: m.chips, disabled: state.busy }) : "");
+      }).join("");
+      const liveBubble = convo.active && convo.phase === "listening" && convo.live
+        ? ChatBubble({ message: { role: "user", text: convo.live }, pending: true }).replace('class="bubble', 'data-live-bubble class="bubble')
+        : "";
       const input = $app.querySelector(".composer__input");
       const draft = input && !state.busy ? input.value : "";
       $app.innerHTML = `
@@ -345,8 +359,9 @@
           ${headerFor(state.muted)}
           ${CaseCard({ card: state.card })}
           <div class="chat" id="chat" aria-live="polite">
-            ${!state.messages.length && !state.pending ? ChatEmptyHint({ voice }) : ""}
+            ${!state.messages.length && !state.pending && !liveBubble ? ChatEmptyHint({ voice }) : ""}
             ${body}
+            ${liveBubble}
             ${state.pending ? ChatBubble({ message: { role: "user", text: state.pending }, pending: true }) : ""}
             ${state.busy ? ThinkingDots() : ""}
           </div>
@@ -354,14 +369,54 @@
           ${state.notice && !state.error ? `<div class="notice-line">${esc(state.notice)}</div>` : ""}
           ${convo.active ? VoiceBar({ phase: convo.phase, live: convo.live }) : Composer({ disabled: state.busy, voice })}
         </div>`;
-      const chat = $app.querySelector("#chat");
-      chat.scrollTop = chat.scrollHeight;
+      scrollChat();
       const newInput = $app.querySelector(".composer__input");
       if (newInput && draft) newInput.value = draft;
       if (newInput && !state.busy && !voice) newInput.focus(); // voice-first: don't pop the keyboard
     }
+    const scrollChat = () => { const c = $app.querySelector("#chat"); if (c) c.scrollTop = c.scrollHeight; };
     const setOrb = (lvl) => { const o = $app.querySelector("[data-orb]"); if (o) o.style.setProperty("--level", lvl.toFixed(3)); };
-    const setLive = (t) => { convo.live = t; const l = $app.querySelector("[data-live]"); if (l) l.textContent = t; };
+    /** The user's words appear in the chat while they talk (browser preview; Sarvam's text replaces it). */
+    const setLive = (t) => {
+      const hadText = !!convo.live;
+      convo.live = t;
+      const l = $app.querySelector("[data-live]");
+      if (l) l.textContent = t;
+      const b = $app.querySelector("[data-live-bubble] .bubble__text");
+      if (b) { b.textContent = t; scrollChat(); } else if (!hadText && t) paint();
+    };
+
+    /** Reveal the newest reply word by word, following its audio (or a quick typing pace when muted).
+     *  Resolves when the whole reply is shown and the voice has finished or was interrupted. */
+    async function presentReply(msg, audioUrl) {
+      const rev = { id: msg.id, tokens: msg.text.match(/\S+\s*/g) || [msg.text], shown: 0 };
+      state.revealing = rev;
+      paint();
+      const show = (n) => {
+        if (state.revealing !== rev || !isCurrent()) return;
+        n = Math.max(0, Math.min(rev.tokens.length, n));
+        if (n === rev.shown) return;
+        const first = rev.shown === 0;
+        rev.shown = n;
+        if (first) { paint(); return; } // swap the thinking dots for the bubble
+        const el = $app.querySelector(`[data-msg-id="${msg.id}"] .bubble__text`);
+        if (el) { el.textContent = rev.tokens.slice(0, n).join(""); scrollChat(); }
+      };
+      let outcome = "none";
+      if (audioUrl && !state.muted) {
+        // a word appears just before it is spoken
+        outcome = await playAudio(audioUrl, (f) => show(Math.ceil(f * rev.tokens.length + 0.5)));
+      }
+      if (outcome === "none" || outcome === "failed") {
+        // no voice to follow: type the reply out at reading pace
+        while (state.revealing === rev && rev.shown < rev.tokens.length && isCurrent()) {
+          show(rev.shown + 1);
+          await new Promise((r) => setTimeout(r, VOICE.wordMs));
+        }
+      }
+      show(rev.tokens.length); // ended or interrupted: show everything
+      if (state.revealing === rev) { state.revealing = null; paint(); }
+    }
 
     function voiceError(e) {
       const detail = e && e.detail;
@@ -372,8 +427,9 @@
     }
 
     /** One turn. input: { text } | { chipId, label } | { audio: {blob, liveText} }.
-     *  Returns { res, playing } (playing resolves when the spoken reply ends), or null on error. */
-    async function send(input) {
+     *  Returns { res, playing } (playing resolves when the reply has been spoken and shown),
+     *  { noSpeech: true } when the audio had no words, or null on any other error. */
+    async function send(input, { quietNoSpeech = false } = {}) {
       if (state.busy) return null;
       const { text, chipId, label, audio } = input;
       stopAudio();
@@ -381,16 +437,20 @@
       state.error = null;
       state.notice = null;
       state.pending = text || label || (audio && (audio.liveText || "🎤 …"));
+      convo.live = "";
       paint();
       try {
         let res;
         if (chipId === "retry") res = await AgentRepository.confirmRetry(state.caseId);
         else if (audio) res = await AgentRepository.sendVoice(state.caseId, audio.blob, { lang: Prefs.lastLang });
         else res = await AgentRepository.sendTurn(state.caseId, { text, chipId });
-        state.messages.push(...res.messages);
         state.card = res.case.card;
         Prefs.lastLang = res.lang;
-        const playing = state.muted ? Promise.resolve() : playAudio(res.speak && res.speak.audio_url);
+        const [userMsg, agentMsg] = res.messages;
+        state.messages.push(userMsg, agentMsg);
+        state.busy = false;
+        state.pending = null;
+        const playing = presentReply(agentMsg, res.speak && res.speak.audio_url);
         const pay = (res.actions || []).find((a) => a.type === "OPEN_PAY_SCREEN");
         if (pay) {
           // Let the read-back finish ("Paying ₹350 to …") before the pay screen opens.
@@ -401,12 +461,13 @@
         }
         return { res, playing };
       } catch (e) {
-        state.error = audio ? voiceError(e) : `Couldn't send: ${e.message}`;
-        return null;
+        const noSpeech = !!(audio && e && e.status === 422 && e.detail === "no_speech");
+        if (!(noSpeech && quietNoSpeech)) state.error = audio ? voiceError(e) : `Couldn't send: ${e.message}`;
+        return noSpeech ? { noSpeech: true } : null;
       } finally {
         state.busy = false;
         state.pending = null;
-        paint();
+        if (!state.revealing) paint();
       }
     }
 
@@ -425,6 +486,7 @@
       state.error = null;
       state.notice = null;
       let next = first || null;
+      let misses = 0; // "didn't catch that" in a row
       while (convo.active && isCurrent()) {
         let input = next || convo.chip;
         next = null;
@@ -433,7 +495,7 @@
           convo.phase = "listening";
           convo.live = "";
           paint();
-          await new Promise((r) => setTimeout(r, 250)); // let the speaker's tail die down (echo)
+          await new Promise((r) => setTimeout(r, 300)); // let the speaker's tail die down (echo)
           if (!convo.active || !isCurrent()) break;
           convo.ctrl = Voice.capture({ lang: Prefs.lastLang, onLevel: setOrb, onText: setLive });
           const r = await convo.ctrl.done;
@@ -447,12 +509,20 @@
         }
         convo.phase = "thinking";
         paint();
-        const out = await send(input);
+        const out = await send(input, { quietNoSpeech: true });
+        if (out && out.noSpeech) {
+          // Noise, not words: keep the conversation going instead of stopping.
+          misses += 1;
+          if (misses >= VOICE.maxMisses) { state.notice = "I couldn't hear you clearly. Tap the mic to try again, or type."; break; }
+          state.notice = "Sorry, I didn't catch that. Please say it again.";
+          continue;
+        }
         if (!out || !convo.active || !isCurrent()) break;
+        misses = 0;
         if (out.res.end_conversation || !VOICE.handsFree) convo.endAfterSpeech = true;
         convo.phase = "speaking";
         paint();
-        await out.playing; // ends when the reply finishes, or when the user interrupts
+        await out.playing; // ends when the reply has been spoken, or when the user interrupts
         if (convo.endAfterSpeech) break;
       }
       convo.active = false;
@@ -590,27 +660,40 @@
   let finishPlayback = null;
 
   /** Play a reply. Resolves when it ends, fails, or is interrupted (so a conversation can continue). */
-  function playAudio(url) {
+  /** Play a reply. onProgress(0..1) follows playback so the text can be revealed with the voice.
+   *  Resolves "ended" | "interrupted" (stopAudio / barge-in) | "failed" (never played) | "none" (no url). */
+  function playAudio(url, onProgress = () => {}) {
     stopAudio();
-    if (!url || !$audio) return Promise.resolve();
+    if (!url || !$audio) return Promise.resolve("none");
     return new Promise((resolve) => {
       let done = false;
-      const fin = () => {
+      let started = false;
+      let raf = 0;
+      const fin = (outcome) => {
         if (done) return;
         done = true;
         clearTimeout(guard);
-        $audio.onended = $audio.onerror = null;
+        clearTimeout(loadGuard);
+        cancelAnimationFrame(raf);
+        $audio.onended = $audio.onerror = $audio.onplaying = $audio.ontimeupdate = null;
         finishPlayback = null;
-        resolve();
+        if (outcome === "ended") onProgress(1);
+        resolve(outcome);
       };
-      const guard = setTimeout(fin, 60000);
-      // Audio that never starts loading (no output device, background tab) must not stall the conversation.
-      setTimeout(() => { if (!done && $audio.readyState === 0) fin(); }, 8000);
-      finishPlayback = fin;
-      $audio.onended = fin;
-      $audio.onerror = fin;
+      const report = () => {
+        if ($audio.duration > 0 && isFinite($audio.duration)) onProgress($audio.currentTime / $audio.duration);
+      };
+      const loop = () => { report(); if (!done) raf = requestAnimationFrame(loop); };
+      const guard = setTimeout(() => fin(started ? "ended" : "failed"), 60000);
+      // Audio that never starts loading (no output device, background tab) must not stall the chat.
+      const loadGuard = setTimeout(() => { if (!started) fin("failed"); }, 8000);
+      finishPlayback = () => fin(started ? "interrupted" : "failed");
+      $audio.onplaying = () => { started = true; loop(); };
+      $audio.ontimeupdate = report; // keeps progressing even where animation frames are throttled
+      $audio.onended = () => fin("ended");
+      $audio.onerror = () => fin("failed");
       $audio.src = url;
-      $audio.play().catch(fin); // autoplay blocked: the bubble text is the same as the speech
+      $audio.play().catch(() => fin("failed")); // autoplay blocked: the text is typed out instead
     });
   }
   function stopAudio() {

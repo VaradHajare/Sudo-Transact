@@ -160,7 +160,7 @@ Optional fields:
 | Status | `detail` | Client should |
 |---|---|---|
 | 422 | `stt_disabled` | Hide the mic and use text |
-| 422 | `no_speech` | "I didn't catch that", then let the user try again |
+| 422 | `no_speech` | "I didn't catch that", then listen again. This is also returned when Sarvam rejects an empty or too-short clip ("Audio duration is 0"). |
 | 413 | `audio too large` | Record a shorter clip |
 | 502 | `stt_failed` | Fall back to typing |
 

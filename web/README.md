@@ -31,10 +31,14 @@ A phone-width web app for the AI Resolve feature. Plain HTML, CSS and JS: no fra
 ## Voice
 - **Mic tap on a payment:** the listening sheet rises over that screen. It records until ~1.5 s of silence (or a tap on the orb), then opens the chat for that payment and sends the audio to `POST /v1/voice/turn`. The backend does Sarvam STT, so no key lives in the browser.
 - **Hands-free conversation (Siri-style):** one tap starts a conversation. After each spoken reply the app listens again by itself, and a voice bar ("Listening… / Thinking… / Speaking…", live words, keyboard, ✕) replaces the text box.
-  - **It ends when:** the user is silent for `VOICE.noSpeechMs` (7 s), says thanks or goodbye, asks for a human, taps ✕ or the keyboard, the pay screen opens, or the user leaves the chat.
+  - **It ends when:** the user is silent for `VOICE.noSpeechMs` (20 s), says thanks or goodbye, asks for a human, taps ✕ or the keyboard, the pay screen opens, or the user leaves the chat.
+  - **"Didn't catch that" (noise, no words):** it keeps listening. It only pauses after `VOICE.maxMisses` (3) misses in a row.
+  - **Pauses mid-sentence:** up to `VOICE.silenceMs` (2 s) is fine; one turn can run up to 30 s.
+  - **Room noise** is measured in the first 0.4 s of each listen, and speech must be `VOICE.noiseFactor` (3×) louder, so fans or the agent's own voice tail don't count as speech.
+  - **While listening,** the user's words appear in the chat as they speak (browser preview); Sarvam's transcript replaces them.
   - **Tapping the orb:** while it's speaking, this interrupts (barge-in); while it's listening, this sends right away.
   - **To go back to one tap per question,** set `VOICE.handsFree = false`.
-- **Replies:** played from `speak.audio_url` through the hidden `<audio id="tts">`. The speaker icon in the chat header mutes replies. If the audio never starts loading, the conversation moves on after 8 s.
+- **Replies:** the text is revealed word by word in step with the voice (`playAudio` progress), and the follow-up chips appear only after the reply finishes. When muted, or if the audio can't play, the text types out at `VOICE.wordMs` per word. If the audio never starts loading, it gives up after 8 s and types the text instead.
 - **Live transcript in the sheet:** a preview from the browser's own speech recognizer, where one exists. In Chrome that audio is processed by Google. Only Sarvam's transcript is used. Turn the preview off with `VOICE.liveTranscript` in `data.js`.
 - **Mic access:** browsers allow the mic only on `localhost` or HTTPS. For a phone, use an HTTPS tunnel and set `PUBLIC_BASE_URL` in `backend/.env` to that address.
 - **Fallbacks:** when the server has voice off (`/healthz`), the browser can't record, or mic permission is denied, the chat works by typing.

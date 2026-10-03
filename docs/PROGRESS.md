@@ -30,6 +30,14 @@
   - **Safety:** the mic is still on only while a listening indicator shows. Goodbye is detected before yes/no, so "ok thanks" can never confirm a retry; "no thanks" still declines.
   - **Fix:** the voice level is measured on the audio thread (AudioWorklet), because frame-based sampling missed the follow-up turn.
   - **Checked in Chrome:** two-turn hands-free run (question → answer → auto-listen → "ठीक है, धन्यवाद" → goodbye → mic released).
+  - **Follow-up (owner feedback):**
+    - The wait is longer: 20 s to start talking, 2 s pauses allowed mid-sentence, 30 s per turn.
+    - A no-speech clip keeps the loop listening (up to 3 misses).
+    - Room noise is measured before speech counts.
+    - Sarvam's 400 for empty clips now means `no_speech`, not an outage.
+    - Reply text is revealed in step with the voice, with chips after it finishes.
+    - The user's live words show in the chat while they speak.
+    - Checked in Chrome: noise → keeps listening → question → word-by-word reply → chips → auto-listen → goodbye.
 
 ## Next
 - Step 8: simulator + B0/B1/B2 evaluation (B2 = with the LLM classifier).

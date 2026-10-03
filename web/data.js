@@ -195,11 +195,14 @@
    */
   const VOICE = Object.freeze({
     liveTranscript: true,
-    silenceMs: 1500, // end of speech after this much silence (spec 4.2)
-    noSpeechMs: 7000, // nobody spoke: a hands-free conversation ends here
-    maxMs: 15000,
+    silenceMs: 2000, // end of speech after this much silence (room for slow speakers to pause)
+    noSpeechMs: 20000, // nobody spoke for this long: a hands-free conversation pauses
+    maxMisses: 3, // "didn't catch that" this many times in a row: the conversation pauses
+    maxMs: 30000, // longest single turn
     handsFree: true, // after a spoken reply, listen again automatically (Siri-style)
-    speechLevel: 0.04, // RMS above this counts as speech
+    speechLevel: 0.04, // minimum RMS that counts as speech (raised automatically in noisy rooms)
+    noiseFactor: 3, // speech must be this many times louder than the measured room noise
+    wordMs: 45, // reply text reveal speed when there is no audio to follow (muted)
   });
   const LANG_TAG = { en: "en-IN", hi: "hi-IN", mr: "mr-IN" };
 

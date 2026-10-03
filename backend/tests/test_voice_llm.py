@@ -156,6 +156,12 @@ def test_stt_failure_is_reported(api, net):
     assert r.status_code == 502 and r.json()["detail"] == "stt_failed"
 
 
+def test_unusable_clip_is_no_speech_not_an_outage(api, net):
+    net.stt_status = 400  # Sarvam: "Audio duration is 0, please check the audio."
+    r = say_audio(api, open_case(api, "txn_f3_gupta"))
+    assert r.status_code == 422 and r.json()["detail"] == "no_speech"
+
+
 def test_audio_token_must_exist(api):
     assert api.get("/v1/audio/" + "0" * 32).status_code == 404
     assert api.get("/v1/audio/../../etc").status_code == 404
