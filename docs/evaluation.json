@@ -1,0 +1,1721 @@
+{
+ "generated_at": "2026-10-03T09:38:16Z",
+ "config": {
+  "n_cases": 3000,
+  "seed": 7,
+  "p_record_stale": 0.3,
+  "p_state_change": 0.1,
+  "p_source_outage": 0.06,
+  "p_settling": 0.03,
+  "mix": {
+   "F1_DECLINED_PRE_DEBIT": 0.14,
+   "F2_TIMEOUT_PRE_DEBIT": 0.12,
+   "F3_PENDING": 0.1,
+   "F4_DEBIT_NO_CREDIT": 0.16,
+   "F5_DEEMED_SUCCESS": 0.08,
+   "F6_BANK_DOWNTIME": 0.1,
+   "F7_DUPLICATE_DEBIT": 0.06,
+   "F8_ALREADY_REVERSED": 0.08,
+   "F9_CONFLICT": 0.08,
+   "F10_SUSPICIOUS": 0.08
+  }
+ },
+ "rules": {
+  "PENDING_WINDOW_MINUTES": 30,
+  "RETRY_COOLDOWN_SECONDS": 600,
+  "EVIDENCE_LAG_SECONDS": 120,
+  "SLA_BENEFICIARY_CREDIT_FAILURE_DAYS": 1,
+  "LLM_MIN_CONFIDENCE": 0.7,
+  "REPEAT_CLAIM_THRESHOLD": 3
+ },
+ "llm": {
+  "model": "deepseek-flash",
+  "distinct_inputs": 45,
+  "calls": 45,
+  "errors": 8,
+  "latency_ms_median": 1819,
+  "answers": [
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 1,
+      "credited": true
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": null,
+      "status": "DEEMED"
+     },
+     "paytm_record": {
+      "debited": true,
+      "failure_code": null,
+      "status": "SUCCESS"
+     }
+    },
+    "class": "F5_DEEMED_SUCCESS",
+    "confidence": 0.9
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BANK_UNAVAILABLE",
+      "status": "FAILED"
+     }
+    },
+    "class": "F6_BANK_DOWNTIME",
+    "confidence": 0.85
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "BENEFICIARY_CREDIT_FAILED",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BENEFICIARY_CREDIT_FAILED",
+      "status": "FAILED"
+     }
+    },
+    "class": null,
+    "confidence": null
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "BANK_DECLINED",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BANK_DECLINED",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.9
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "BENEFICIARY_BANK_DOWN",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BENEFICIARY_BANK_DOWN",
+      "status": "FAILED"
+     }
+    },
+    "class": "F6_BANK_DOWNTIME",
+    "confidence": 0.9
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BAD_NETWORK",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.8
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": false,
+      "reason_code": null,
+      "status": "PENDING"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": null,
+      "status": "PENDING"
+     }
+    },
+    "class": "F3_PENDING",
+    "confidence": 0.78
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 2,
+      "state": "DEBITED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 1,
+      "credited": true
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": true,
+      "failure_code": null,
+      "status": "SUCCESS"
+     }
+    },
+    "class": "F7_DUPLICATE_DEBIT",
+    "confidence": 0.9
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "INSUFFICIENT_FUNDS",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.95
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "BENEFICIARY_CREDIT_FAILED",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": true,
+      "failure_code": "BENEFICIARY_CREDIT_FAILED",
+      "status": "FAILED"
+     }
+    },
+    "class": "F4_DEBIT_NO_CREDIT",
+    "confidence": 0.92
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "TXN_FAILED",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.72
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 1,
+      "credited": true
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": null,
+      "status": "SUCCESS"
+     },
+     "paytm_record": {
+      "debited": true,
+      "failure_code": null,
+      "status": "SUCCESS"
+     }
+    },
+    "class": "F5_DEEMED_SUCCESS",
+    "confidence": 0.95
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 1,
+      "state": "DEBITED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": null,
+      "status": "FAILED"
+     }
+    },
+    "class": "F9_CONFLICT",
+    "confidence": 0.65
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "WRONG_PIN",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.95
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": false,
+      "reason_code": "BAD_NETWORK",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BAD_NETWORK",
+      "status": "FAILED"
+     }
+    },
+    "class": null,
+    "confidence": null
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BENEFICIARY_BANK_DOWN",
+      "status": "FAILED"
+     }
+    },
+    "class": "F6_BANK_DOWNTIME",
+    "confidence": 0.82
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 1,
+      "state": "REVERSED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": true,
+      "failure_code": "BENEFICIARY_CREDIT_FAILED",
+      "status": "FAILED"
+     }
+    },
+    "class": "F8_ALREADY_REVERSED",
+    "confidence": 0.9
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": false,
+      "reason_code": "TIMEOUT",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "TIMEOUT",
+      "status": "FAILED"
+     }
+    },
+    "class": "F2_TIMEOUT_PRE_DEBIT",
+    "confidence": 0.84
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "BANK_UNAVAILABLE",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BANK_UNAVAILABLE",
+      "status": "FAILED"
+     }
+    },
+    "class": "F6_BANK_DOWNTIME",
+    "confidence": 0.9
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "INSUFFICIENT_FUNDS",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "INSUFFICIENT_FUNDS",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.92
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 1,
+      "state": "DEBITED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": true,
+      "failure_code": null,
+      "status": "FAILED"
+     }
+    },
+    "class": "F4_DEBIT_NO_CREDIT",
+    "confidence": 0.9
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": false,
+      "reason_code": null,
+      "status": "PENDING"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": null,
+      "status": "FAILED"
+     }
+    },
+    "class": "F9_CONFLICT",
+    "confidence": 0.7
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "TIMEOUT",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "TIMEOUT",
+      "status": "FAILED"
+     }
+    },
+    "class": "F2_TIMEOUT_PRE_DEBIT",
+    "confidence": 0.9
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 1,
+      "state": "DEBITED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": true,
+      "failure_code": "BENEFICIARY_CREDIT_FAILED",
+      "status": "FAILED"
+     }
+    },
+    "class": "F4_DEBIT_NO_CREDIT",
+    "confidence": 0.92
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "ISSUER_DOWN",
+      "status": "FAILED"
+     }
+    },
+    "class": "F6_BANK_DOWNTIME",
+    "confidence": 0.82
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 1,
+      "state": "DEBITED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 1,
+      "credited": true
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": null,
+      "status": "PENDING"
+     }
+    },
+    "class": "F5_DEEMED_SUCCESS",
+    "confidence": 0.82
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "TIMEOUT",
+      "status": "FAILED"
+     }
+    },
+    "class": "F2_TIMEOUT_PRE_DEBIT",
+    "confidence": 0.92
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": null,
+      "status": "PENDING"
+     }
+    },
+    "class": "F3_PENDING",
+    "confidence": 0.7
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "WRONG_PIN",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "WRONG_PIN",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.95
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "NO_RESPONSE",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "NO_RESPONSE",
+      "status": "FAILED"
+     }
+    },
+    "class": "F2_TIMEOUT_PRE_DEBIT",
+    "confidence": 0.86
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "LIMIT_EXCEEDED",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "LIMIT_EXCEEDED",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.95
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "BAD_NETWORK",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BAD_NETWORK",
+      "status": "FAILED"
+     }
+    },
+    "class": null,
+    "confidence": null
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 1,
+      "state": "REVERSED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BENEFICIARY_CREDIT_FAILED",
+      "status": "FAILED"
+     }
+    },
+    "class": null,
+    "confidence": null
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": "ISSUER_DOWN",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "ISSUER_DOWN",
+      "status": "FAILED"
+     }
+    },
+    "class": "F6_BANK_DOWNTIME",
+    "confidence": 0.95
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": false,
+      "reason_code": null,
+      "status": "PENDING"
+     },
+     "paytm_record": {
+      "debited": true,
+      "failure_code": null,
+      "status": "FAILED"
+     }
+    },
+    "class": null,
+    "confidence": null
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "LIMIT_EXCEEDED",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.95
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 1,
+      "state": "DEBITED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BENEFICIARY_CREDIT_FAILED",
+      "status": "FAILED"
+     }
+    },
+    "class": null,
+    "confidence": null
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 1,
+      "credited": true
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": null,
+      "status": "DEEMED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": null,
+      "status": "PENDING"
+     }
+    },
+    "class": null,
+    "confidence": null
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": false,
+      "reason_code": null,
+      "status": "PENDING"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BAD_NETWORK",
+      "status": "FAILED"
+     }
+    },
+    "class": "F9_CONFLICT",
+    "confidence": 0.7
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 1,
+      "state": "DEBITED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 1,
+      "credited": true
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BAD_NETWORK",
+      "status": "FAILED"
+     }
+    },
+    "class": null,
+    "confidence": null
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "BANK_DECLINED",
+      "status": "FAILED"
+     }
+    },
+    "class": "F1_DECLINED_PRE_DEBIT",
+    "confidence": 0.9
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 1,
+      "credited": true
+     },
+     "npci": {
+      "available": true,
+      "final": true,
+      "reason_code": null,
+      "status": "SUCCESS"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": null,
+      "status": "PENDING"
+     }
+    },
+    "class": "F9_CONFLICT",
+    "confidence": 0.78
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 0,
+      "state": "NO_DEBIT"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "NO_RESPONSE",
+      "status": "FAILED"
+     }
+    },
+    "class": "F2_TIMEOUT_PRE_DEBIT",
+    "confidence": 0.8
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": true,
+      "debit_count": 1,
+      "state": "DEBITED"
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 1,
+      "credited": true
+     },
+     "npci": {
+      "available": false,
+      "final": false,
+      "reason_code": null,
+      "status": null
+     },
+     "paytm_record": {
+      "debited": true,
+      "failure_code": null,
+      "status": "SUCCESS"
+     }
+    },
+    "class": "F5_DEEMED_SUCCESS",
+    "confidence": 0.95
+   },
+   {
+    "input": {
+     "bank_ledger": {
+      "available": false,
+      "debit_count": 0,
+      "state": null
+     },
+     "merchant": {
+      "available": true,
+      "credit_count": 0,
+      "credited": false
+     },
+     "npci": {
+      "available": true,
+      "final": false,
+      "reason_code": "NO_RESPONSE",
+      "status": "FAILED"
+     },
+     "paytm_record": {
+      "debited": false,
+      "failure_code": "NO_RESPONSE",
+      "status": "FAILED"
+     }
+    },
+    "class": "F2_TIMEOUT_PRE_DEBIT",
+    "confidence": 0.72
+   }
+  ]
+ },
+ "variants": {
+  "f10_claim_amount": 67,
+  "f10_claim_payee": 89,
+  "f10_repeat_claimant": 82,
+  "f1_declined": 294,
+  "f1_declined+source_outage": 27,
+  "f1_inside_pending_window": 69,
+  "f1_inside_pending_window+source_outage": 3,
+  "f1_late_debit_before_offer": 64,
+  "f1_late_debit_before_offer+source_outage": 5,
+  "f2_not_final_yet": 85,
+  "f2_not_final_yet+source_outage": 9,
+  "f2_timeout": 229,
+  "f2_timeout+source_outage": 11,
+  "f3_pending": 135,
+  "f3_pending+source_outage": 8,
+  "f3_pending_record_says_failed": 68,
+  "f3_pending_record_says_failed+source_outage": 4,
+  "f3_settling_inside_lag": 89,
+  "f3_settling_inside_lag+source_outage": 2,
+  "f4_before_deadline": 186,
+  "f4_before_deadline+source_outage": 8,
+  "f4_before_deadline_stale_record": 67,
+  "f4_before_deadline_stale_record+source_outage": 4,
+  "f4_deadline_missed": 108,
+  "f4_deadline_missed+source_outage": 6,
+  "f4_deadline_missed_stale_record": 48,
+  "f4_deadline_missed_stale_record+source_outage": 7,
+  "f4_reversal_lands_before_dispute": 31,
+  "f5_deemed_success": 92,
+  "f5_deemed_success+source_outage": 2,
+  "f5_deemed_success_stale_record": 108,
+  "f5_deemed_success_stale_record+source_outage": 8,
+  "f6_bank_down": 289,
+  "f6_bank_down+source_outage": 16,
+  "f7_duplicate_debit": 168,
+  "f7_duplicate_debit+source_outage": 17,
+  "f8_reversed": 109,
+  "f8_reversed+source_outage": 4,
+  "f8_reversed_stale_record": 157,
+  "f8_reversed_stale_record+source_outage": 14,
+  "f9_amount_mismatch": 56,
+  "f9_credit_without_debit": 52,
+  "f9_npci_success_no_debit": 49,
+  "f9_record_success_npci_failed": 54
+ },
+ "baselines": {
+  "B0": {
+   "n_cases": 3000,
+   "diagnosis_accuracy": 0.605,
+   "diagnosis_accuracy_per_class": {
+    "F10_SUSPICIOUS": 1.0,
+    "F1_DECLINED_PRE_DEBIT": 1.0,
+    "F2_TIMEOUT_PRE_DEBIT": 1.0,
+    "F3_PENDING": 0.4673,
+    "F4_DEBIT_NO_CREDIT": 0.6123,
+    "F5_DEEMED_SUCCESS": 0.4476,
+    "F6_BANK_DOWNTIME": 1.0,
+    "F7_DUPLICATE_DEBIT": 0.0,
+    "F8_ALREADY_REVERSED": 0.0,
+    "F9_CONFLICT": 0.0
+   },
+   "action_accuracy": 0.5947,
+   "action_accuracy_per_class": {
+    "F10_SUSPICIOUS": 1.0,
+    "F1_DECLINED_PRE_DEBIT": 0.9313,
+    "F2_TIMEOUT_PRE_DEBIT": 0.6856,
+    "F3_PENDING": 0.7941,
+    "F4_DEBIT_NO_CREDIT": 0.6004,
+    "F5_DEEMED_SUCCESS": 0.4619,
+    "F6_BANK_DOWNTIME": 1.0,
+    "F7_DUPLICATE_DEBIT": 0.0,
+    "F8_ALREADY_REVERSED": 0.0127,
+    "F9_CONFLICT": 0.0
+   },
+   "retries_offered": 1193,
+   "false_retries": 670,
+   "false_retry_rate": 0.2782,
+   "false_actions": 379,
+   "false_action_rate": 0.6546,
+   "recheck_cancelled": 0,
+   "recheck_prevented_wrong_action": 0,
+   "escalations": 238,
+   "escalation_rate": 0.0793,
+   "escalation_precision": 1.0,
+   "needless_escalations": 0,
+   "escalation_recall": 0.5301,
+   "sla_breaches": 156,
+   "sla_breaches_caught": 108,
+   "outage_cases": 305,
+   "outage_answered_without_human": 305,
+   "llm_classified": 0,
+   "llm_low_confidence": 0,
+   "confusion": {
+    "F10_SUSPICIOUS": {
+     "F10_SUSPICIOUS": 238
+    },
+    "F1_DECLINED_PRE_DEBIT": {
+     "F1_DECLINED_PRE_DEBIT": 393
+    },
+    "F2_TIMEOUT_PRE_DEBIT": {
+     "F2_TIMEOUT_PRE_DEBIT": 334
+    },
+    "F3_PENDING": {
+     "F2_TIMEOUT_PRE_DEBIT": 72,
+     "F1_DECLINED_PRE_DEBIT": 91,
+     "F3_PENDING": 143
+    },
+    "F4_DEBIT_NO_CREDIT": {
+     "F1_DECLINED_PRE_DEBIT": 195,
+     "F4_DEBIT_NO_CREDIT": 308
+    },
+    "F5_DEEMED_SUCCESS": {
+     "F3_PENDING": 60,
+     "F5_DEEMED_SUCCESS": 94,
+     "F2_TIMEOUT_PRE_DEBIT": 56
+    },
+    "F6_BANK_DOWNTIME": {
+     "F6_BANK_DOWNTIME": 305
+    },
+    "F7_DUPLICATE_DEBIT": {
+     "F5_DEEMED_SUCCESS": 185
+    },
+    "F8_ALREADY_REVERSED": {
+     "F4_DEBIT_NO_CREDIT": 190,
+     "F1_DECLINED_PRE_DEBIT": 125
+    },
+    "F9_CONFLICT": {
+     "F4_DEBIT_NO_CREDIT": 56,
+     "F1_DECLINED_PRE_DEBIT": 101,
+     "F5_DEEMED_SUCCESS": 54
+    }
+   },
+   "failures_by_variant": {
+    "f7_duplicate_debit": 168,
+    "f8_reversed_stale_record": 157,
+    "f8_reversed": 109,
+    "f5_deemed_success_stale_record": 108,
+    "f2_not_final_yet": 85,
+    "f4_before_deadline_stale_record": 67,
+    "f1_late_debit_before_offer": 64,
+    "f3_pending_record_says_failed": 59,
+    "f9_amount_mismatch": 56,
+    "f9_record_success_npci_failed": 54,
+    "f9_credit_without_debit": 52,
+    "f9_npci_success_no_debit": 49,
+    "f4_deadline_missed_stale_record": 48,
+    "f4_reversal_lands_before_dispute": 31,
+    "f1_declined+source_outage": 27,
+    "f7_duplicate_debit+source_outage": 17,
+    "f2_timeout+source_outage": 11,
+    "f8_reversed_stale_record+source_outage": 10,
+    "f2_not_final_yet+source_outage": 9,
+    "f4_deadline_missed_stale_record+source_outage": 7,
+    "f4_deadline_missed+source_outage": 6,
+    "f1_late_debit_before_offer+source_outage": 5,
+    "f3_pending_record_says_failed+source_outage": 4,
+    "f4_before_deadline_stale_record+source_outage": 4,
+    "f8_reversed+source_outage": 4,
+    "f5_deemed_success_stale_record+source_outage": 3,
+    "f5_deemed_success+source_outage": 2
+   },
+   "wrong_actions_by_variant": {
+    "f3_pending_record_says_failed": {
+     "OFFER_RETRY (rule 7)": 59
+    },
+    "f4_before_deadline_stale_record": {
+     "OFFER_RETRY (rule 7)": 67
+    },
+    "f5_deemed_success_stale_record": {
+     "WAIT (rule 4)": 55,
+     "OFFER_RETRY (rule 7)": 51,
+     "WAIT (rule 7b)": 2
+    },
+    "f9_amount_mismatch": {
+     "WAIT (rule 5)": 56
+    },
+    "f8_reversed_stale_record": {
+     "RAISE_DISPUTE (rule 5)": 103,
+     "WAIT (rule 5)": 54
+    },
+    "f9_credit_without_debit": {
+     "OFFER_RETRY (rule 7)": 52
+    },
+    "f1_late_debit_before_offer": {
+     "OFFER_RETRY (rule 7)": 64
+    },
+    "f4_reversal_lands_before_dispute": {
+     "RAISE_DISPUTE (rule 5)": 19,
+     "OFFER_RETRY (rule 7)": 12
+    },
+    "f8_reversed": {
+     "OFFER_RETRY (rule 7)": 109
+    },
+    "f5_deemed_success+source_outage": {
+     "CLOSE (rule 3)": 2
+    },
+    "f7_duplicate_debit": {
+     "CLOSE (rule 3)": 168
+    },
+    "f9_record_success_npci_failed": {
+     "CLOSE (rule 3)": 54
+    },
+    "f4_deadline_missed_stale_record+source_outage": {
+     "OFFER_RETRY (rule 7)": 7
+    },
+    "f1_late_debit_before_offer+source_outage": {
+     "OFFER_RETRY (rule 7)": 5
+    },
+    "f2_not_final_yet": {
+     "OFFER_RETRY (rule 7)": 85
+    },
+    "f4_deadline_missed_stale_record": {
+     "OFFER_RETRY (rule 7)": 48
+    },
+    "f2_timeout+source_outage": {
+     "OFFER_RETRY (rule 7)": 11
+    },
+    "f3_pending_record_says_failed+source_outage": {
+     "OFFER_RETRY (rule 7)": 4
+    },
+    "f7_duplicate_debit+source_outage": {
+     "CLOSE (rule 3)": 17
+    },
+    "f9_npci_success_no_debit": {
+     "OFFER_RETRY (rule 7)": 49
+    },
+    "f1_declined+source_outage": {
+     "OFFER_RETRY (rule 7)": 27
+    },
+    "f8_reversed_stale_record+source_outage": {
+     "RAISE_DISPUTE (rule 5)": 10
+    },
+    "f4_before_deadline_stale_record+source_outage": {
+     "OFFER_RETRY (rule 7)": 4
+    },
+    "f2_not_final_yet+source_outage": {
+     "OFFER_RETRY (rule 7)": 9
+    },
+    "f8_reversed+source_outage": {
+     "OFFER_RETRY (rule 7)": 4
+    },
+    "f4_deadline_missed+source_outage": {
+     "RAISE_DISPUTE (rule 5)": 6
+    },
+    "f5_deemed_success_stale_record+source_outage": {
+     "OFFER_RETRY (rule 7)": 3
+    }
+   }
+  },
+  "B1": {
+   "n_cases": 3000,
+   "diagnosis_accuracy": 0.931,
+   "diagnosis_accuracy_per_class": {
+    "F10_SUSPICIOUS": 1.0,
+    "F1_DECLINED_PRE_DEBIT": 0.9237,
+    "F2_TIMEOUT_PRE_DEBIT": 0.9401,
+    "F3_PENDING": 0.9575,
+    "F4_DEBIT_NO_CREDIT": 0.9404,
+    "F5_DEEMED_SUCCESS": 0.7,
+    "F6_BANK_DOWNTIME": 0.9475,
+    "F7_DUPLICATE_DEBIT": 0.9081,
+    "F8_ALREADY_REVERSED": 0.9429,
+    "F9_CONFLICT": 1.0
+   },
+   "action_accuracy": 0.9823,
+   "action_accuracy_per_class": {
+    "F10_SUSPICIOUS": 1.0,
+    "F1_DECLINED_PRE_DEBIT": 1.0,
+    "F2_TIMEOUT_PRE_DEBIT": 1.0,
+    "F3_PENDING": 1.0,
+    "F4_DEBIT_NO_CREDIT": 1.0,
+    "F5_DEEMED_SUCCESS": 0.7476,
+    "F6_BANK_DOWNTIME": 1.0,
+    "F7_DUPLICATE_DEBIT": 1.0,
+    "F8_ALREADY_REVERSED": 1.0,
+    "F9_CONFLICT": 1.0
+   },
+   "retries_offered": 523,
+   "false_retries": 0,
+   "false_retry_rate": 0.0,
+   "false_actions": 0,
+   "false_action_rate": 0.0,
+   "recheck_cancelled": 95,
+   "recheck_prevented_wrong_action": 95,
+   "escalations": 656,
+   "escalation_rate": 0.2187,
+   "escalation_precision": 0.9192,
+   "needless_escalations": 53,
+   "escalation_recall": 1.0,
+   "sla_breaches": 156,
+   "sla_breaches_caught": 156,
+   "outage_cases": 305,
+   "outage_answered_without_human": 289,
+   "llm_classified": 0,
+   "llm_low_confidence": 0,
+   "confusion": {
+    "F10_SUSPICIOUS": {
+     "F10_SUSPICIOUS": 238
+    },
+    "F1_DECLINED_PRE_DEBIT": {
+     "F1_DECLINED_PRE_DEBIT": 363,
+     "AMBIGUOUS": 30
+    },
+    "F2_TIMEOUT_PRE_DEBIT": {
+     "F2_TIMEOUT_PRE_DEBIT": 314,
+     "AMBIGUOUS": 20
+    },
+    "F3_PENDING": {
+     "F3_PENDING": 293,
+     "AMBIGUOUS": 13
+    },
+    "F4_DEBIT_NO_CREDIT": {
+     "F4_DEBIT_NO_CREDIT": 473,
+     "AMBIGUOUS": 30
+    },
+    "F5_DEEMED_SUCCESS": {
+     "F5_DEEMED_SUCCESS": 147,
+     "AMBIGUOUS": 8,
+     "F9_CONFLICT": 55
+    },
+    "F6_BANK_DOWNTIME": {
+     "F6_BANK_DOWNTIME": 289,
+     "AMBIGUOUS": 16
+    },
+    "F7_DUPLICATE_DEBIT": {
+     "F7_DUPLICATE_DEBIT": 168,
+     "AMBIGUOUS": 17
+    },
+    "F8_ALREADY_REVERSED": {
+     "F8_ALREADY_REVERSED": 297,
+     "AMBIGUOUS": 18
+    },
+    "F9_CONFLICT": {
+     "F9_CONFLICT": 211
+    }
+   },
+   "failures_by_variant": {
+    "f5_deemed_success_stale_record": 53
+   },
+   "wrong_actions_by_variant": {
+    "f5_deemed_success_stale_record": {
+     "ESCALATE (rule 1)": 53
+    }
+   }
+  },
+  "B2": {
+   "n_cases": 3000,
+   "diagnosis_accuracy": 0.9653,
+   "diagnosis_accuracy_per_class": {
+    "F10_SUSPICIOUS": 1.0,
+    "F1_DECLINED_PRE_DEBIT": 1.0,
+    "F2_TIMEOUT_PRE_DEBIT": 0.976,
+    "F3_PENDING": 0.9837,
+    "F4_DEBIT_NO_CREDIT": 0.9602,
+    "F5_DEEMED_SUCCESS": 0.7238,
+    "F6_BANK_DOWNTIME": 1.0,
+    "F7_DUPLICATE_DEBIT": 0.973,
+    "F8_ALREADY_REVERSED": 0.9746,
+    "F9_CONFLICT": 1.0
+   },
+   "action_accuracy": 0.9823,
+   "action_accuracy_per_class": {
+    "F10_SUSPICIOUS": 1.0,
+    "F1_DECLINED_PRE_DEBIT": 1.0,
+    "F2_TIMEOUT_PRE_DEBIT": 1.0,
+    "F3_PENDING": 1.0,
+    "F4_DEBIT_NO_CREDIT": 1.0,
+    "F5_DEEMED_SUCCESS": 0.7476,
+    "F6_BANK_DOWNTIME": 1.0,
+    "F7_DUPLICATE_DEBIT": 1.0,
+    "F8_ALREADY_REVERSED": 1.0,
+    "F9_CONFLICT": 1.0
+   },
+   "retries_offered": 523,
+   "false_retries": 0,
+   "false_retry_rate": 0.0,
+   "false_actions": 0,
+   "false_action_rate": 0.0,
+   "recheck_cancelled": 95,
+   "recheck_prevented_wrong_action": 95,
+   "escalations": 626,
+   "escalation_rate": 0.2087,
+   "escalation_precision": 0.9153,
+   "needless_escalations": 53,
+   "escalation_recall": 1.0,
+   "sla_breaches": 156,
+   "sla_breaches_caught": 156,
+   "outage_cases": 305,
+   "outage_answered_without_human": 305,
+   "llm_classified": 130,
+   "llm_low_confidence": 2,
+   "confusion": {
+    "F10_SUSPICIOUS": {
+     "F10_SUSPICIOUS": 238
+    },
+    "F1_DECLINED_PRE_DEBIT": {
+     "F1_DECLINED_PRE_DEBIT": 393
+    },
+    "F2_TIMEOUT_PRE_DEBIT": {
+     "F2_TIMEOUT_PRE_DEBIT": 326,
+     "F1_DECLINED_PRE_DEBIT": 3,
+     "AMBIGUOUS": 5
+    },
+    "F3_PENDING": {
+     "F3_PENDING": 301,
+     "F1_DECLINED_PRE_DEBIT": 4,
+     "F9_CONFLICT": 1
+    },
+    "F4_DEBIT_NO_CREDIT": {
+     "F4_DEBIT_NO_CREDIT": 483,
+     "AMBIGUOUS": 13,
+     "F1_DECLINED_PRE_DEBIT": 5,
+     "F9_CONFLICT": 2
+    },
+    "F5_DEEMED_SUCCESS": {
+     "F5_DEEMED_SUCCESS": 152,
+     "F9_CONFLICT": 56,
+     "AMBIGUOUS": 2
+    },
+    "F6_BANK_DOWNTIME": {
+     "F6_BANK_DOWNTIME": 305
+    },
+    "F7_DUPLICATE_DEBIT": {
+     "F7_DUPLICATE_DEBIT": 180,
+     "F5_DEEMED_SUCCESS": 5
+    },
+    "F8_ALREADY_REVERSED": {
+     "F8_ALREADY_REVERSED": 307,
+     "F4_DEBIT_NO_CREDIT": 4,
+     "AMBIGUOUS": 4
+    },
+    "F9_CONFLICT": {
+     "F9_CONFLICT": 211
+    }
+   },
+   "failures_by_variant": {
+    "f5_deemed_success_stale_record": 53
+   },
+   "wrong_actions_by_variant": {
+    "f5_deemed_success_stale_record": {
+     "ESCALATE (rule 1)": 53
+    }
+   }
+  }
+ },
+ "pipeline_agreement": {
+  "sample": 485,
+  "agree": 485,
+  "agreement_rate": 1.0,
+  "mismatches": [],
+  "open_prepared_ms_median": 1.95,
+  "open_prepared_ms_p95": 2.75,
+  "open_on_demand_ms_median": 3.23,
+  "open_on_demand_ms_p95": 5.22
+ },
+ "right_payment": {
+  "users": 50,
+  "session_bound_to_new_payment": 50,
+  "reply_about_new_payment": 50,
+  "right_payment_rate": 1.0,
+  "answered_in_first_turn": 50,
+  "open_plus_first_reply_ms_median": 20.8
+ },
+ "seconds": 174.4,
+ "run_id": 2
+}

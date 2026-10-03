@@ -20,8 +20,23 @@ def compute_deadline(b: EvidenceBundle, settings: Settings) -> tuple[datetime, s
     return clock.ist_to_utc_naive(end_of_day), kind
 
 
+# An LLM classification may only lead to waiting or a human (spec 8.3: the LLM never triggers a
+# dispute or a retry, and never closes a case on its own). Found by the B2 evaluation: with a source
+# down, an LLM "F7" or "F8" otherwise raised disputes or closed cases.
+LLM_ALLOWED_ACTIONS = {Action.WAIT, Action.ESCALATE, Action.REASSEMBLE}
+
+
 def decide(d: Diagnosis, b: EvidenceBundle, now: datetime, settings: Settings, history: RetryHistory,
            *, recheck_changed: bool = False) -> Decision:
+    dec = _decide(d, b, now, settings, history, recheck_changed=recheck_changed)
+    if d.source == "LLM" and dec.action not in LLM_ALLOWED_ACTIONS:
+        return Decision(action=Action.ESCALATE, rule="8", trace=dec.trace + [
+            f"rule 8: {dec.action} would rest on an LLM classification; only rules may trigger it (spec 8.3)"])
+    return dec
+
+
+def _decide(d: Diagnosis, b: EvidenceBundle, now: datetime, settings: Settings, history: RetryHistory,
+            *, recheck_changed: bool = False) -> Decision:
     trace = [f"class {d.case_class} ({d.source}, confidence {d.confidence:.2f})"]
     cls = d.case_class
     if d.confidence < settings.LLM_MIN_CONFIDENCE:

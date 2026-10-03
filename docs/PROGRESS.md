@@ -39,8 +39,27 @@
     - The user's live words show in the chat while they speak.
     - Checked in Chrome: noise → keeps listening → question → word-by-word reply → chips → auto-listen → goodbye.
 
+- **Step 8: simulator + evaluation.** `app/sim/`, run with `scripts/run_sim.py`; results in `docs/EVALUATION.md` and `docs/evaluation.json`, and the run is recorded in `sim_runs` / `sim_cases`.
+  - **Generator:** labelled cases for F1–F10 with noise:
+    - stale Paytm records;
+    - a source outage;
+    - disagreements still inside the allowed lag;
+    - the world changing between the decision and the action (late debit, reversal landing);
+    - adversarial claims and repeat claimants.
+  - **Answer key:** each case's acceptable actions come from the scenario, not from the engine.
+  - **Baselines:** B0 (record only), B1 (+ all evidence + live re-check) and B2 (+ LLM classifier, live `deepseek-flash`, cached per distinct evidence pattern).
+  - **Results (3000 cases, seed 7):**
+    - B0: false-retry rate 27.8%.
+    - B1 and B2: false retries 0 and false actions 0.
+    - The re-check cancelled 95 actions, all of which would have been wrong.
+    - B2 lifts diagnosis accuracy from 93.1% to 96.5%.
+  - **Cross-check:** 500 cases also ran through the real `process_transaction` on a throwaway DB (with the world switching before the re-check). They agree 100% with the simulator loop.
+  - **Right payment:** the spec 1.0 sequence over HTTP attaches the right payment 50/50.
+  - **Safety bug found by B2, fixed:** with a source down, an LLM class (F7, F8, F4 past deadline) went through rules 2/3/5/6 and raised disputes or closed cases, against spec 8.3. Now an LLM-sourced diagnosis can only lead to WAIT or ESCALATE (`decision.py`, `LLM_ALLOWED_ACTIONS`), and a test runs B2 with a reckless fake LLM.
+  - **Known failure, reported and left for the team:** a payment that really succeeded, but whose Paytm record still says FAILED, is escalated as a record-vs-NPCI conflict (53 needless escalations).
+
 ## Next
-- Step 8: simulator + B0/B1/B2 evaluation (B2 = with the LLM classifier).
+- Decide whether "record FAILED, but NPCI SUCCESS + debited + credited" should CLOSE instead of escalating (see EVALUATION.md).
 - Before demo: native-speaker review of Hindi/Marathi templates; verify RBI TAT/compensation values.
 
 ## Notes / decisions

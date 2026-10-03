@@ -129,18 +129,22 @@ Return JSON only: {"case_class": "...", "confidence": 0.0-1.0, "reasons": ["shor
 _classify_cache: "OrderedDict[str, tuple[Diagnosis | None, dict]]" = OrderedDict()
 
 
+def classify_payload(b: EvidenceBundle) -> str:
+    """The exact (structured, timestamp-free) input the classifier sees."""
+    return json.dumps({
+        "paytm_record": {"status": b.txn.status, "debited": b.txn.debited, "failure_code": b.txn.failure_code},
+        "npci": b.npci.model_dump(mode="json", exclude={"reason"}),
+        "bank_ledger": b.ledger.model_dump(mode="json", include={"available", "state", "debit_count"}),
+        "merchant": b.merchant.model_dump(mode="json", include={"available", "credited", "credit_count"}),
+    }, sort_keys=True)
+
+
 def classify_ambiguous(llm: LLMClient, b: EvidenceBundle) -> tuple[Diagnosis | None, dict]:
     """Structured evidence only: no user free text reaches this prompt."""
     key = b.fingerprint() + b.txn.id
     if key in _classify_cache:
         return _classify_cache[key]
-    evidence = {
-        "paytm_record": {"status": b.txn.status, "debited": b.txn.debited, "failure_code": b.txn.failure_code},
-        "npci": b.npci.model_dump(mode="json", exclude={"reason"}),
-        "bank_ledger": b.ledger.model_dump(mode="json", include={"available", "state", "debit_count"}),
-        "merchant": b.merchant.model_dump(mode="json", include={"available", "credited", "credit_count"}),
-    }
-    out, meta = llm.complete_json(CLASSIFY_SYSTEM, json.dumps(evidence), ClassOut)
+    out, meta = llm.complete_json(CLASSIFY_SYSTEM, classify_payload(b), ClassOut)
     info = {"ok": meta.ok, "latency_ms": meta.latency_ms, "error": meta.error, "model": meta.model}
     diag = None
     if out:

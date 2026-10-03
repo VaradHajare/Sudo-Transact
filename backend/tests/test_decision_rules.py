@@ -185,3 +185,38 @@ def test_rule8_low_confidence_llm_class_escalates():
 def test_trace_records_rule_and_class():
     dec = run(f.f1())
     assert any("rule 7" in line for line in dec.trace)
+
+
+# ---- LLM classifications may only wait or escalate (spec 8.3; found by the B2 evaluation)
+def _llm(cls, conf=0.95):
+    return Diagnosis(case_class=cls, confidence=conf, source="LLM")
+
+
+def test_llm_class_cannot_raise_a_dispute():
+    from app.domain import NpciEvidence
+    b = f.bundle(t=f.txn(status="SUCCESS", debited=True, failure_code=None), n=NpciEvidence(available=False),
+                 l=f.ledger("DEBITED", debit_count=2), m=f.merchant(True))
+    assert run(b).action == Action.ESCALATE  # rules alone: AMBIGUOUS
+    dec = run(b, diag=_llm(CaseClass.F7_DUPLICATE_DEBIT))
+    assert (dec.action, dec.rule) == (Action.ESCALATE, "8")
+    assert "spec 8.3" in dec.trace[-1]
+
+
+def test_llm_class_cannot_close_a_case():
+    from app.domain import NpciEvidence
+    b = f.bundle(t=f.txn(debited=True), n=NpciEvidence(available=False), l=f.ledger("REVERSED"))
+    dec = run(b, diag=_llm(CaseClass.F8_ALREADY_REVERSED))
+    assert (dec.action, dec.rule) == (Action.ESCALATE, "8")
+
+
+def test_llm_class_cannot_dispute_a_missed_deadline():
+    b = f.f4(minutes_ago=3 * 24 * 60)
+    assert run(b).action == Action.RAISE_DISPUTE  # the same evidence through the rules may
+    assert run(b, diag=_llm(CaseClass.F4_DEBIT_NO_CREDIT)).action == Action.ESCALATE
+
+
+def test_llm_class_may_still_wait():
+    from app.domain import NpciEvidence
+    b = f.bundle(t=f.txn(failure_code="BANK_UNAVAILABLE"), n=NpciEvidence(available=False))
+    dec = run(b, diag=_llm(CaseClass.F6_BANK_DOWNTIME))
+    assert (dec.action, dec.rule) == (Action.WAIT, "4")
