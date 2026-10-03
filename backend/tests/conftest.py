@@ -21,6 +21,18 @@ def settings(tmp_path) -> Settings:
 
 
 @pytest.fixture
+def client(settings):
+    """App with the demo seed loaded."""
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    app = create_app(settings.model_copy(update={"SEED_DEMO_DATA": True}))
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture
 def db_session(settings):
     from app.bootstrap import init_database
 

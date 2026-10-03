@@ -31,7 +31,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def healthz():
         return {"ok": True, "llm": settings.LLM_ENABLED, "stt": settings.STT_ENABLED, "tts": settings.TTS_ENABLED}
 
-    _include_routers(app)
+    _include_routers(app, settings)
 
     web_dir = Path(settings.WEB_DIR)
     if web_dir.is_dir():
@@ -40,8 +40,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-def _include_routers(app: FastAPI) -> None:
-    pass
+def _include_routers(app: FastAPI, settings: Settings) -> None:
+    from app.mock.router import router as mock_router
+
+    if settings.DEMO_MODE:
+        app.include_router(mock_router)
 
 
 app = create_app()
