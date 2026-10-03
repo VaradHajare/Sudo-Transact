@@ -204,6 +204,12 @@ def test_reasoning_truncation_is_reported(vsettings):
     assert out is None and not meta.ok and "LLM_MAX_TOKENS" in meta.error
 
 
+def test_llm_flags_off_topic_without_keywords(api, net):
+    net.intent = {"intent": "off_topic", "language": "en", "confidence": 0.95}
+    d = say(api, open_case(api, "txn_s2_citymobiles"), "who won the election in 1998")
+    assert d["intent"] == "off_topic" and d["speak"]["text"].startswith("Please stay relevant to this transaction")
+
+
 def test_llm_cannot_confirm_a_retry_that_is_not_on_offer(api, net):
     net.intent = {"intent": "confirm_retry", "language": "en", "confidence": 0.99}
     d = say(api, open_case(api, "txn_s2_citymobiles"), "could you look into this one for me")

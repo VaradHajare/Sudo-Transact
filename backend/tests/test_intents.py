@@ -45,6 +45,13 @@ def test_language_keeps_current_without_signal():
     ("ok thanks", "RETRY_OFFERED", "goodbye"),
     ("no thanks", "RETRY_OFFERED", "decline_retry"),
     ("yes please", "RETRY_OFFERED", "confirm_retry"),
+    # off-topic: told to stay on this transaction
+    ("Can you give me the code for palindrome?", "RETRY_OFFERED", "off_topic"),
+    ("what's the weather today", "WAITING", "off_topic"),
+    ("aaj mausam kaisa hai", "WAITING", "off_topic"),
+    ("मुझे एक चुटकुला सुनाओ", "WAITING", "off_topic"),
+    ("मला एक विनोद सांगा", "WAITING", "off_topic"),
+    ("nice weather, but where is my money?", "WAITING", "status_check"),  # mixed: payment wins
 ])
 def test_intent(text, state, intent):
     assert detect_intent(text, state) == intent

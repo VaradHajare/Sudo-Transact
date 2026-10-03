@@ -209,6 +209,19 @@ def goodbye_text(lang: str) -> str:
     return GOODBYE[_lang(lang)]
 
 
+# ------------------------------------------------------------------ off-topic questions
+OFF_TOPIC = {
+    "en": "Please stay relevant to this transaction. I can only help with your ₹{amount} payment to {payee}: what happened, what to do next, or talking to a person.",
+    "hi": "कृपया इसी लेन-देन से जुड़ी बात पूछिए। मैं सिर्फ़ {payee} को किए गए आपके {amount} रुपये के पेमेंट में मदद कर सकता हूँ: क्या हुआ, आगे क्या करना है, या किसी इंसान से बात करना।",
+    "mr": "कृपया याच व्यवहाराशी संबंधित विचारा. मी फक्त {payee} ला केलेल्या तुमच्या {amount} रुपयांच्या पेमेंटबद्दल मदत करू शकतो: काय झाले, पुढे काय करायचे, किंवा माणसाशी बोलणे.",
+}
+
+
+def off_topic_text(facts: Facts, lang: str) -> str:
+    lang = _lang(lang)
+    return _fill(OFF_TOPIC[lang], facts, lang)
+
+
 # ------------------------------------------------------------------ briefing: urgent updates on OTHER cases
 # Only actions the agent took on the user's behalf (spec 4.2). Good news like a landed refund is
 # shown by the history badge and that case's own chat, not appended to an unrelated answer.

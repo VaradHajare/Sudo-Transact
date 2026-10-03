@@ -159,6 +159,28 @@ def test_end_conversation_flag_for_hands_free_mode(api):
     assert r["actions"][0]["type"] == "OPEN_PAY_SCREEN" and r["end_conversation"] is True
 
 
+@pytest.mark.parametrize("text,lang,start", [
+    ("Can you give me the code for palindrome?", "en",
+     "Please stay relevant to this transaction. I can only help with your ₹350 payment to Sharma Medicals"),
+    ("aaj mausam kaisa hai bhai", "hi", "कृपया इसी लेन-देन से जुड़ी बात पूछिए। मैं सिर्फ़ Sharma Medicals को किए गए आपके 350 रुपये"),
+    ("मला एक विनोद सांगा", "mr", "कृपया याच व्यवहाराशी संबंधित विचारा. मी फक्त Sharma Medicals ला केलेल्या तुमच्या 350 रुपयांच्या"),
+])
+def test_off_topic_is_redirected_in_the_users_language(api, text, lang, start):
+    cid = open_case(api, "txn_s1_sharma")["case"]["id"]
+    r = say(api, cid, text)
+    assert r["intent"] == "off_topic" and r["lang"] == lang
+    assert r["speak"]["text"].startswith(start)
+    assert r["actions"] == [] and r["case"]["state"] == "RETRY_OFFERED"  # nothing about the case changes
+    assert r["chips"]  # the chips steer back to the payment
+
+
+def test_off_topic_amounts_are_not_claims(api):
+    cid = open_case(api, "txn_s2_citymobiles")["case"]["id"]
+    r = say(api, cid, "what is 5000 rupees in dollars")
+    assert r["intent"] == "off_topic"
+    assert r["case"]["class"] == "F4_DEBIT_NO_CREDIT" and r["case"]["state"] == "WAITING"  # not escalated as F10
+
+
 def test_talk_to_human(api):
     cid = open_case(api, "txn_f3_gupta")["case"]["id"]
     r = say(api, cid, chip="talk_to_human")

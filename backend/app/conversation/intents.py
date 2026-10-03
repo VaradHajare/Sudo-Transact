@@ -47,7 +47,18 @@ def detect_language(text: str, current: str = "en") -> str:
 
 
 INTENTS = ("status_check", "what_should_i_do", "why", "confirm_retry", "decline_retry", "raise_dispute",
-           "repeat", "talk_to_human", "what_if", "goodbye")
+           "repeat", "talk_to_human", "what_if", "goodbye", "off_topic")
+
+# Clearly not about this payment. Only used when nothing payment-related matched, so a mixed
+# question ("weather ... and where is my money?") still gets the payment answer.
+_OFF_TOPIC = ["code", "coding", "program", "programming", "python", "java", "javascript", "palindrome",
+              "algorithm", "function", "weather", "joke", "jokes", "movie", "film", "song", "songs", "music",
+              "recipe", "cricket", "football", "match score", "news", "poem", "essay", "homework", "story",
+              "capital of", "who is the", "prime minister", "translate", "dollar", "dollars", "stock", "bitcoin",
+              "girlfriend", "boyfriend", "mausam", "gaana", "gana", "chutkula", "kahani", "kavita", "picture",
+              "havaman", "gaane", "vinod",
+              "मौसम", "गाना", "गाने", "चुटकुला", "फिल्म", "कहानी", "कविता", "क्रिकेट", "हवामान", "गाणे", "गाणं",
+              "विनोद", "चित्रपट", "गोष्ट"]
 
 # Ends a hands-free conversation. Checked BEFORE yes/no so "ok thanks" never confirms a retry.
 _GOODBYE = ["thank you", "thanks", "thankyou", "bye", "goodbye", "that's all", "thats all", "nothing else",
@@ -120,6 +131,8 @@ def detect_intent_ex(text: str, case_state: str | None = None) -> tuple[str, boo
             return intent, True
     if any(_has(t, p) for p in _STATUS_HINTS):
         return "status_check", True
+    if any(_has(t, p) for p in _OFF_TOPIC):
+        return "off_topic", True
     return "status_check", False
 
 

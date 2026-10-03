@@ -105,7 +105,8 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
                                               "input": "chip" if chip_id else "voice" if stt else "text"}, actor="USER")
 
     claims = []
-    amount = extract_amount_paise(text or "")
+    # Only statements about this payment count as claims ("convert 500 rupees to dollars" is not one).
+    amount = extract_amount_paise(text or "") if intent not in ("off_topic", "goodbye") else None
     if amount is not None:
         claims.append(Claim(kind="AMOUNT", value=str(amount), ts=now))
 
@@ -146,6 +147,8 @@ def handle_turn(db: Session, settings: Settings, case: Case, *, text: str | None
             reply = templates.dispute_request_text(sit, facts, lang)
         elif intent == "goodbye":
             reply = templates.goodbye_text(lang)
+        elif intent == "off_topic":
+            reply = templates.off_topic_text(facts, lang)
         elif intent == "repeat":
             last = (db.query(Message).filter(Message.case_id == case.id, Message.role == "agent")
                     .order_by(Message.id.desc()).first())

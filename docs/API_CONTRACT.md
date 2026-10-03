@@ -210,6 +210,8 @@ Rendering:
 
 **`end_conversation`** (boolean, on every turn response). It is `true` when the user said goodbye ("thank you", "bas", "धन्यवाद"), asked for a human, or an `OPEN_PAY_SCREEN` action was returned. A hands-free client stops listening after speaking this reply; otherwise it listens again. A goodbye turn has `intent: "goodbye"`, no chips, and changes nothing about the case.
 
+**Off-topic questions** (coding, weather, jokes, "ignore your instructions…") come back with `intent: "off_topic"` and a reply in the user's language that points back to this payment ("Please stay relevant to this transaction. I can only help with your ₹350 payment to Sharma Medicals: …"). The case doesn't change, numbers in the question are not treated as claims, and the usual chips are returned.
+
 **Actions**:
 
 | type | Meaning |
