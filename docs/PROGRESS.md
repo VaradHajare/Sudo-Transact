@@ -9,8 +9,13 @@
 
 - **Step 4: /v1 API.** Session tokens (HMAC, demo login), `Idempotency-Key` on mutating calls, all spec §9 routes plus `GET /v1/transactions/{id}` and `POST /v1/payments` (mock PIN pay; a retry must match the confirmed payload). Text turns via keyword intents + language detection (en/hi/mr incl. romanized), template replies with number-check, chips, `OPEN_PAY_SCREEN` action; first reply briefs disputes on other cases. Audio turns return `422 stt_disabled` until step 7. `docs/API_CONTRACT.md` written from real responses.
 
+- **Step 5: web UI.** New phone-width app at `web/` root (`index.html`, `styles.css`, `data.js`, `app.js`, `README.md`) using the colours of `Paytm-Clone-main/` (left untouched). `TransactionRepository` / `AgentRepository` call `/v1` (async). Screens: home, history (badges), transaction details with floating AI mic, AI Resolve chat (text mode: case card, bubbles, chips, update messages), pay + mock PIN for safe retry. Checked in Chrome: S2 (City Mobiles, "paise kat gaye par mila nahi") and the full S1 retry flow.
+
 ## Next
-- Step 5: web UI in `web/` wired to the API (history, transaction details + mic button, agent chat in text mode, pay + PIN).
+- Step 6: SLA/dispute scheduler: one in-process worker polling the `jobs` table (rows are already written for WAIT decisions); move the time-skip re-decide into it.
+- Step 7: LLM adapter (intent/rephrase with number-check), Sarvam STT/TTS, listening sheet with live transcript.
+- Step 8: simulator + B0/B1/B2 evaluation.
+- Before demo: native-speaker review of Hindi/Marathi templates; verify RBI TAT/compensation values.
 
 ## Notes / decisions
 - Times are naive UTC in the DB; IST (+05:30) for display and SLA end-of-day.

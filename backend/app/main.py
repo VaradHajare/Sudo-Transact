@@ -33,6 +33,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     _include_routers(app, settings)
 
+    @app.middleware("http")
+    async def no_stale_web_files(request, call_next):
+        # The UI has no build step / hashed filenames: make browsers revalidate so edits show up.
+        response = await call_next(request)
+        if not request.url.path.startswith(("/v1", "/mock")):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     web_dir = Path(settings.WEB_DIR)
     if web_dir.is_dir():
         # Mounted last so /v1 and /mock win. Same origin for UI and API: no CORS needed.
