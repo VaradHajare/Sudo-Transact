@@ -20,7 +20,7 @@ STATE_FOR = {
     Action.WAIT: "WAITING", Action.OFFER_RETRY: "RETRY_OFFERED", Action.RAISE_DISPUTE: "DISPUTED",
     Action.CLOSE: "CLOSED", Action.ESCALATE: "ESCALATED",
 }
-TERMINAL_STATES = {"CLOSED", "RESOLVED", "ESCALATED"}
+TERMINAL_STATES = {"CLOSED", "RESOLVED", "ESCALATED", "REVIEWED"}
 
 
 def save_evidence(db: Session, case: Case, b: EvidenceBundle, now: datetime) -> None:

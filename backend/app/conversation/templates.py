@@ -197,20 +197,15 @@ RETRY = {
     },
 }
 
-# ------------------------------------------------------------------ briefing: updates on OTHER cases
+# ------------------------------------------------------------------ briefing: urgent updates on OTHER cases
+# Only actions the agent took on the user's behalf (spec 4.2). Good news like a landed refund is
+# shown by the history badge and that case's own chat, not appended to an unrelated answer.
 BRIEFING = {
-    "en": {"DISPUTED": "Also: I raised a complaint for your ₹{amount} payment to {payee}.",
-           "REVERSED": "Also: the ₹{amount} from your payment to {payee} has come back.",
-           "SUCCEEDED": "Also: your ₹{amount} payment to {payee} went through."},
-    "hi": {"DISPUTED": "एक और बात: {payee} वाले {amount} रुपये के पेमेंट के लिए मैंने शिकायत दर्ज कर दी है।",
-           "REVERSED": "एक और बात: {payee} वाले पेमेंट के {amount} रुपये वापस आ गए हैं।",
-           "SUCCEEDED": "एक और बात: {payee} को आपका {amount} रुपये का पेमेंट हो गया है।"},
-    "mr": {"DISPUTED": "आणखी एक: {payee} च्या {amount} रुपयांच्या पेमेंटसाठी मी तक्रार नोंदवली आहे.",
-           "REVERSED": "आणखी एक: {payee} च्या पेमेंटचे {amount} रुपये परत आले आहेत.",
-           "SUCCEEDED": "आणखी एक: {payee} ला तुमचे {amount} रुपयांचे पेमेंट झाले आहे."},
+    "en": {"DISPUTED": "Also: I raised a complaint for your ₹{amount} payment to {payee}."},
+    "hi": {"DISPUTED": "एक और बात: {payee} वाले {amount} रुपये के पेमेंट के लिए मैंने शिकायत दर्ज कर दी है।"},
+    "mr": {"DISPUTED": "आणखी एक: {payee} च्या {amount} रुपयांच्या पेमेंटसाठी मी तक्रार नोंदवली आहे."},
 }
-_BRIEFING_KEYS = {"DISPUTED": "DISPUTED", "DUPLICATE_DISPUTED": "DISPUTED", "REVERSED": "REVERSED",
-                  "SUCCEEDED": "SUCCEEDED", "RESOLVED_BY_RETRY": "SUCCEEDED"}
+_BRIEFING_KEYS = {"DISPUTED": "DISPUTED", "DUPLICATE_DISPUTED": "DISPUTED"}
 
 # Situations that produce an agent "update" message in the chat when they happen in the background.
 UPDATE_SITUATIONS = {"DISPUTED", "DUPLICATE_DISPUTED", "REVERSED", "SUCCEEDED", "RESOLVED_BY_RETRY"}

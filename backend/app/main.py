@@ -41,8 +41,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def _include_routers(app: FastAPI, settings: Settings) -> None:
+    from app.api.v1 import router as v1_router
     from app.mock.router import router as mock_router
 
+    app.include_router(v1_router)
     if settings.DEMO_MODE:
         app.include_router(mock_router)
 
