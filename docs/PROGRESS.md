@@ -26,7 +26,7 @@
   - **Rule fix found while testing:** rule 7b no longer waits forever when NPCI evidence is *missing*; it escalates.
   - **Checked live:** a Hindi voice turn in 0.9 s; the browser flow sheet → STT → S2 answer; all four LLM jobs. Audible playback can't be confirmed in the automated browser (hidden tab); check it by hand.
 - **Hands-free voice conversation (owner request, 2026-10-03).** One tap starts a Siri-style loop (listen → spoken reply → listen) instead of spec 4.2 step 6's tap per turn.
-  - **It ends on:** 7 s of silence, a goodbye ("thank you / bas / धन्यवाद", new intent `goodbye`), asking for a human, the pay screen, ✕, or leaving the chat. The backend sends `end_conversation`.
+  - **It ends on:** silence (now 20 s, see the follow-up below), a goodbye ("thank you / bas / धन्यवाद", new intent `goodbye`), asking for a human, the pay screen, ✕, or leaving the chat. The backend sends `end_conversation`.
   - **Safety:** the mic is still on only while a listening indicator shows. Goodbye is detected before yes/no, so "ok thanks" can never confirm a retry; "no thanks" still declines.
   - **Fix:** the voice level is measured on the audio thread (AudioWorklet), because frame-based sampling missed the follow-up turn.
   - **Checked in Chrome:** two-turn hands-free run (question → answer → auto-listen → "ठीक है, धन्यवाद" → goodbye → mic released).
