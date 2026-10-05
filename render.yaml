@@ -1,0 +1,43 @@
+# Render blueprint: the live demo (FastAPI serving the API and web/ on one origin).
+# Render dashboard -> New -> Blueprint -> pick this repo. Fill the "sync: false" secrets when asked.
+# Free plan: sleeps when idle (first visit takes ~30 s) and the SQLite file is wiped on every
+# restart; the app re-seeds the demo data on startup (SEED_DEMO_DATA), so each boot is a clean demo.
+services:
+  - type: web
+    name: sudo-transact
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.3
+      - key: APP_ENV
+        value: demo
+      - key: DATABASE_URL
+        value: sqlite:///./sudo_transact.db
+      - key: DEMO_MODE
+        value: "true"
+      - key: SEED_DEMO_DATA
+        value: "true"
+      - key: SESSION_TOKEN_SECRET
+        generateValue: true
+      - key: LLM_ENABLED
+        value: "true"
+      - key: LLM_BASE_URL
+        value: https://api.deepseek.com/v1
+      - key: LLM_MODEL
+        value: deepseek-flash
+      - key: STT_ENABLED
+        value: "true"
+      - key: TTS_ENABLED
+        value: "true"
+      # Secrets: entered in the Render dashboard, never committed.
+      - key: LLM_API_KEY
+        sync: false
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: HUMAN_SUPPORT_PHONE
+        sync: false
