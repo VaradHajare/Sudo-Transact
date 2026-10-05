@@ -126,6 +126,7 @@
   - **Tests:** 223 pass.
 
 ## Next
+- Hosted demo: `render.yaml` (Render blueprint, free plan) is pushed; create the service in the Render dashboard (New → Blueprint) and enter `LLM_API_KEY`, `SARVAM_API_KEY`, `HUMAN_SUPPORT_PHONE`. Until then `mobile/tunnel.ps1` gives a temporary link from the laptop.
 - Rehearse `docs/DEMO.md` with real voice; record the fallback clip.
 - Decide whether "record FAILED, but NPCI SUCCESS + debited + credited" should CLOSE instead of escalating (see EVALUATION.md).
 - Before demo: native-speaker review of Hindi/Marathi templates; verify RBI TAT/compensation values.
