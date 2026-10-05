@@ -342,12 +342,20 @@
     clear(caseId) { store.del("pay_" + caseId); },
   };
 
-  // What the server has switched on (voice, LLM). Cached for the page's lifetime.
+  // What the server has switched on (voice, LLM). A good answer is cached for the page's lifetime;
+  // a failed one is not (a hosted server waking from sleep can fail the first check), so the next
+  // call asks again instead of leaving voice off until a reload.
   let healthPromise = null;
+  const fetchHealth = () => fetch("/healthz").then((r) => {
+    if (!r.ok) throw new Error("healthz " + r.status);
+    return r.json();
+  });
   const ConfigRepository = {
     async health() {
       if (!healthPromise) {
-        healthPromise = fetch("/healthz").then((r) => r.json()).catch(() => ({ stt: false, tts: false }));
+        healthPromise = fetchHealth()
+          .catch(() => new Promise((ok) => setTimeout(ok, 1500)).then(fetchHealth))
+          .catch(() => { healthPromise = null; return { stt: false, tts: false }; });
       }
       return healthPromise;
     },

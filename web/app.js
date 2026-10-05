@@ -378,11 +378,10 @@
   }
 
   async function AgentScreen({ id: txnId }, isCurrent) {
-    const health = await ConfigRepository.health();
-    const voice = !!(health.stt && Voice.supported);
-    const subtitle = `${t("aboutPayment")}${voice ? "" : ` · ${t("textMode")}`}`;
+    let health = await ConfigRepository.health();
+    let voice = !!(health.stt && Voice.supported);
     const headerFor = (muted) => AppHeader({
-      title: esc(BRAND.assistantName), subtitle, back: true,
+      title: esc(BRAND.assistantName), subtitle: `${t("aboutPayment")}${voice ? "" : ` · ${t("textMode")}`}`, back: true,
       right: health.tts
         ? `<button class="app-header__back" data-action="mute" aria-pressed="${muted}" aria-label="${esc(muted ? t("unmute") : t("mute"))}">${muted ? Icon.speakerOff : Icon.speaker}</button>`
         : "",
@@ -642,6 +641,16 @@
       const example = ev.target.closest("[data-example]");
       if (example) return send({ text: example.dataset.example });
       if (ev.target.closest('[data-action="mic"]')) {
+        if (!voice && !health.stt && Voice.supported) {
+          // The check may have failed while the server was waking up: ask again before giving up.
+          return ConfigRepository.health().then((h) => {
+            health = h;
+            voice = !!h.stt;
+            if (voice) { paint(); return converse(); }
+            state.error = t("voiceOff");
+            paint();
+          });
+        }
         if (!voice) {
           state.error = health.stt ? t("cantRecord") : t("voiceOff");
           paint();
